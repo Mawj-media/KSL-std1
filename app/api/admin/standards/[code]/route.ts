@@ -11,7 +11,7 @@ const CONTRACT_ERROR =
   "Copy content/module-template.html, replace the checklist items, scenarios, and texts, then publish. " +
   "Publishing was blocked to prevent a module users cannot complete.";
 
-export async function POST(req: Request, { params }: { params: { code: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   let adminId: string;
   try {
     adminId = await requireAdmin();
@@ -19,7 +19,7 @@ export async function POST(req: Request, { params }: { params: { code: string } 
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const code = params.code;
+  const { code } = await params;
   const body = await req.json();
   const patch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),

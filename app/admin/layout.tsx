@@ -42,7 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <div className="topbar-title">Admin Console</div>
             <div className="topbar-sub">Standards content, users and access</div>
           </div>
-          <UserButton afterSignOutUrl="/sign-in" />
+          <UserButton userProfileUrl="/account" userProfileMode="navigation" />
         </header>
         {children}
       </div>

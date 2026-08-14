@@ -1,14 +1,16 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-const isPublicRoute = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/webhooks/clerk",
-]);
+const PUBLIC_PREFIXES = ["/sign-in", "/sign-up", "/api/webhooks/clerk"];
+
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 export default clerkMiddleware((auth, req) => {
-  if (!isPublicRoute(req)) {
-    auth().protect();
+  if (!isPublicRoute(req.nextUrl.pathname)) {
+    auth.protect();
   }
 });
 

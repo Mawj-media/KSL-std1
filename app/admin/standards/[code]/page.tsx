@@ -5,13 +5,14 @@ import { AdminEditor } from "./AdminEditor";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminStandardEditPage({ params }: { params: { code: string } }) {
-  const std = findStandard(params.code);
+export default async function AdminStandardEditPage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = await params;
+  const std = findStandard(code);
   if (!std) {
     return (
       <div className="content">
         <Link href="/admin/standards" className="back-link">← Back to standards</Link>
-        <p style={{ marginTop: 20 }}>Unknown standard: {params.code}</p>
+        <p style={{ marginTop: 20 }}>Unknown standard: {code}</p>
       </div>
     );
   }
@@ -23,7 +24,7 @@ export default async function AdminStandardEditPage({ params }: { params: { code
     const { data } = await getSupabase()
       .from("standards")
       .select("content_html, content_status, available")
-      .eq("code", params.code)
+      .eq("code", code)
       .maybeSingle();
     contentHtml = data?.content_html ?? "";
     contentStatus = data?.content_status ?? "none";
@@ -40,7 +41,7 @@ export default async function AdminStandardEditPage({ params }: { params: { code
         </div>
       </div>
       <AdminEditor
-        code={params.code}
+        code={code}
         initialHtml={contentHtml}
         initialStatus={contentStatus}
         initialAvailable={available}

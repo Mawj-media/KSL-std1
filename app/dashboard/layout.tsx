@@ -37,7 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <OrganizationSwitcher />
-            <UserButton afterSignOutUrl="/sign-in" />
+            <UserButton userProfileUrl="/account" userProfileMode="navigation" />
           </div>
         </header>
         {children}

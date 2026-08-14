@@ -8,8 +8,9 @@ import ModuleFrame from "./ModuleFrame";
 
 export const dynamic = "force-dynamic";
 
-export default async function StandardPage({ params }: { params: { id: string } }) {
-  const std = findStandard(params.id);
+export default async function StandardPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const std = findStandard(id);
   const { userId } = await auth();
 
   let html: string | null = null;
@@ -20,13 +21,13 @@ export default async function StandardPage({ params }: { params: { id: string } 
     const { data } = await getSupabase()
       .from("standards")
       .select("content_html, content_status, available")
-      .eq("code", params.id)
+      .eq("code", id)
       .maybeSingle();
     html = data?.content_html ?? null;
     available = data?.available ?? false;
     published = data?.content_status === "published";
   } else {
-    const b64 = MODULES[params.id];
+    const b64 = MODULES[id];
     html = b64 ? Buffer.from(b64, "base64").toString("utf-8") : null;
     available = std?.available ?? false;
     published = Boolean(html);
@@ -34,7 +35,7 @@ export default async function StandardPage({ params }: { params: { id: string } 
 
   const openable = available && published;
   const legacyMode = !isSupabaseConfigured();
-  const granted = legacyMode || (userId ? await canAccessStandard(userId, params.id) : false);
+  const granted = legacyMode || (userId ? await canAccessStandard(userId, id) : false);
 
   if (!std || !html || !openable || !granted) {
     return (
@@ -49,5 +50,5 @@ export default async function StandardPage({ params }: { params: { id: string } 
     );
   }
 
-  return <ModuleFrame html={html} standardCode={params.id} userId={userId ?? null} />;
+  return <ModuleFrame html={html} standardCode={id} userId={userId ?? null} />;
 }
