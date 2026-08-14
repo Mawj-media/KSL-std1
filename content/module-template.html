@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Module — replace with the standard title</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#ffffff; --bg-soft:#f7f7f5; --text:#1a1a18; --text-2:#5f5e5a;
+    --accent:#1D9E75; --accent-dark:#0F6E56; --accent-soft:#E6F5F0;
+    --border:rgba(0,0,0,0.12); --radius:8px;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;color:var(--text);line-height:1.6;font-size:14px;background:var(--bg);}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 24px 60px;}
+  h1{font-size:22px;font-weight:700;line-height:1.3;}
+  .lead{color:var(--text-2);margin-top:8px;}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:20px 0 18px;flex-wrap:wrap;}
+  .tab{background:none;border:none;padding:10px 14px;font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;}
+  .tab.active{color:var(--accent-dark);border-bottom-color:var(--accent);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .intro p{margin-bottom:12px;}
+  .progress-box{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .progress-track{flex:1;height:8px;background:var(--bg-soft);border-radius:99px;overflow:hidden;border:1px solid var(--border);}
+  #prog-bar{height:100%;width:0;background:var(--accent);transition:width .25s;}
+  #prog-count{font-size:12px;font-weight:600;color:var(--accent-dark);white-space:nowrap;}
+  #prog-msg{font-size:12px;color:var(--text-2);margin-bottom:12px;}
+  .checklist-item{display:flex;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;user-select:none;transition:.15s;}
+  .checklist-item:hover{border-color:var(--accent);}
+  .checklist-item.checked{background:var(--accent-soft);border-color:var(--accent);}
+  .check-box{width:20px;height:20px;border-radius:5px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;}
+  .checklist-item.checked .check-box{background:var(--accent);border-color:var(--accent);}
+  .item-text{font-size:14px;font-weight:500;}
+  .item-sub{font-size:12px;color:var(--text-2);margin-top:2px;}
+  .scenario-card{border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .scenario-num{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-dark);margin-bottom:8px;}
+  .scenario-q{font-size:15px;font-weight:600;margin-bottom:12px;}
+  .scenario-options{display:flex;flex-direction:column;gap:8px;}
+  .scenario-opt{text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;font-size:13px;cursor:pointer;font-family:inherit;transition:.15s;}
+  .scenario-opt:hover:not(:disabled){border-color:var(--accent);}
+  .scenario-opt:disabled{opacity:.75;cursor:default;}
+  .scenario-opt.correct{border-color:var(--accent);background:var(--accent-soft);font-weight:600;}
+  .scenario-opt.wrong{border-color:#e35d5d;background:#fdf0f0;color:#a32d2d;}
+  .feedback{margin-top:12px;font-size:13px;border-radius:var(--radius);padding:10px 12px;}
+  .feedback.good{background:var(--accent-soft);color:var(--accent-dark);}
+  .feedback.bad{background:#fdf0f0;color:#a32d2d;}
+  .reset-btn{margin-top:4px;padding:8px 14px;font-size:12px;font-weight:600;border:1px solid var(--border);background:#fff;border-radius:var(--radius);cursor:pointer;font-family:inherit;}
+  .reset-btn:hover{border-color:var(--accent);color:var(--accent-dark);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Standard — replace with the standard title</h1>
+  <p class="lead">Replace with a one-line description of the module.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="checklist">Self-Assessment</button>
+    <button class="tab" data-tab="scenarios">Scenarios</button>
+    <button class="tab" data-tab="evidence">Evidence Guide</button>
+  </div>
+
+  <section id="panel-overview" class="panel intro active">
+    <p>Replace this with the module overview text (what the standard requires, who it applies to, why it matters).</p>
+  </section>
+
+  <section id="panel-checklist" class="panel">
+    <div class="progress-box">
+      <div class="progress-track"><div id="prog-bar"></div></div>
+      <span id="prog-count">0 / 0</span>
+    </div>
+    <div id="prog-msg"></div>
+    <div id="checklist-items"></div>
+    <button class="reset-btn" onclick="resetChecklist()">↺ Reset assessment</button>
+  </section>
+
+  <section id="panel-scenarios" class="panel">
+    <div id="scenarios-container"></div>
+  </section>
+
+  <section id="panel-evidence" class="panel intro">
+    <p>Replace this with the evidence guide (what records the user should keep: dates, screenshots, sign-offs).</p>
+  </section>
+</div>
+
+<script>
+const checklistData = [
+  { text: "Replace: first self-assessment item", sub: "Replace: guidance for item one" },
+  { text: "Replace: second self-assessment item", sub: "Replace: guidance for item two" }
+];
+
+const scenarios = [
+  {
+    num: "Scenario 1 of N",
+    q: "Replace: the scenario question",
+    options: [
+      { text: "A. Replace: correct answer", correct: true },
+      { text: "B. Replace: wrong answer", correct: false }
+    ],
+    good: "Replace: explanation of why A is correct.",
+    bad: "Replace: explanation of why the wrong choice breaches the standard."
+  }
+];
+
+let checkState = new Array(checklistData.length).fill(false);
+let scenarioAnswered = new Array(scenarios.length).fill(false);
+let scenarioChoice = new Array(scenarios.length).fill(null);
+
+function postReady() {
+  const c = checkState.filter(Boolean).length;
+  const s = scenarioAnswered.filter(Boolean).length;
+  parent.postMessage({ type: 'ksl-module-progress', checklistDone: c, checklistTotal: checkState.length, scenariosDone: s, scenariosTotal: scenarioAnswered.length }, '*');
+  parent.postMessage({ type: 'ksl-module-save', checklist: checkState.slice(), scenarios: scenarioChoice.slice() }, '*');
+}
+
+function renderChecklist() {
+  const container = document.getElementById('checklist-items');
+  container.innerHTML = '';
+  checklistData.forEach((item, i) => {
+    const el = document.createElement('div');
+    el.className = 'checklist-item' + (checkState[i] ? ' checked' : '');
+    el.setAttribute('role', 'checkbox');
+    el.setAttribute('aria-checked', checkState[i]);
+    el.setAttribute('tabindex', '0');
+    el.onclick = () => toggleCheck(i);
+    el.onkeydown = (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleCheck(i); } };
+    el.innerHTML = `
+      <div class="check-box" aria-hidden="true"><span class="check-mark">✓</span></div>
+      <div>
+        <div class="item-text">${item.text}</div>
+        <div class="item-sub">${item.sub}</div>
+      </div>`;
+    container.appendChild(el);
+  });
+  updateProgress();
+}
+
+function toggleCheck(i) {
+  checkState[i] = !checkState[i];
+  renderChecklist();
+}
+
+function updateProgress() {
+  const count = checkState.filter(Boolean).length;
+  const total = checklistData.length;
+  const pct = Math.round((count / total) * 100);
+  document.getElementById('prog-bar').style.width = pct + '%';
+  document.getElementById('prog-count').textContent = count + ' / ' + total;
+  const msg = document.getElementById('prog-msg');
+  if (count === total) {
+    msg.textContent = '✓ All items confirmed. Take a screenshot or note today\'s date as evidence of completion.';
+  } else {
+    msg.textContent = '';
+  }
+  postReady();
+}
+
+function resetChecklist() {
+  checkState = new Array(checklistData.length).fill(false);
+  renderChecklist();
+}
+
+function renderScenarios() {
+  const container = document.getElementById('scenarios-container');
+  container.innerHTML = '';
+  scenarios.forEach((s, si) => {
+    const card = document.createElement('div');
+    card.className = 'scenario-card';
+    const optHtml = s.options.map((o, oi) =>
+      `<button class="scenario-opt" id="s${si}o${oi}" onclick="answerScenario(${si},${oi})">${o.text}</button>`
+    ).join('');
+    card.innerHTML = `
+      <div class="scenario-num">${s.num}</div>
+      <div class="scenario-q">${s.q}</div>
+      <div class="scenario-options">${optHtml}</div>
+      <div id="feedback-${si}"></div>`;
+    container.appendChild(card);
+  });
+}
+
+function answerScenario(si, oi) {
+  if (scenarioAnswered[si]) return;
+  applyScenarioAnswer(si, oi);
+}
+
+function applyScenarioAnswer(si, oi) {
+  scenarioAnswered[si] = true;
+  scenarioChoice[si] = oi;
+  const s = scenarios[si];
+  s.options.forEach((o, idx) => {
+    const btn = document.getElementById('s' + si + 'o' + idx);
+    btn.disabled = true;
+    if (o.correct) btn.classList.add('correct');
+    else if (idx === oi && !o.correct) btn.classList.add('wrong');
+  });
+  const fb = document.getElementById('feedback-' + si);
+  const chosen = s.options[oi];
+  fb.innerHTML = `<div class="feedback ${chosen.correct ? 'good' : 'bad'}">${chosen.correct ? '✓ ' + s.good : '✗ ' + s.bad}</div>`;
+  postReady();
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const map = { overview: 0, checklist: 1, scenarios: 2, evidence: 3 };
+  const tabs = document.querySelectorAll('.tab');
+  tabs[map[name]].classList.add('active');
+  tabs[map[name]].setAttribute('aria-selected', 'true');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+document.querySelectorAll('.tab').forEach((t) => {
+  t.onclick = () => switchTab(t.dataset.tab);
+});
+
+window.addEventListener('message', function (e) {
+  const d = e.data || {};
+  if (d.type === 'ksl-module-ping') { postReady(); return; }
+  if (d.type !== 'ksl-module-restore') return;
+  if (Array.isArray(d.checklist) && d.checklist.length === checkState.length) {
+    checkState = d.checklist.map(Boolean);
+  }
+  if (Array.isArray(d.scenarios) && d.scenarios.length === scenarioAnswered.length) {
+    scenarioAnswered = d.scenarios.map(Boolean);
+    scenarioChoice = d.scenarios.map(function (v) {
+      return (typeof v === 'number' && v >= 0 && v < scenarios.length) ? v : null;
+    });
+  }
+  renderChecklist();
+  renderScenarios();
+  scenarioAnswered.forEach(function (answered, si) {
+    if (answered && scenarioChoice[si] !== null) applyScenarioAnswer(si, scenarioChoice[si]);
+  });
+  postReady();
+});
+
+renderChecklist();
+renderScenarios();
+</script>
+</body>
+</html>
