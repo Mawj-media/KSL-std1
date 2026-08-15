@@ -85,3 +85,13 @@ export async function canAccessStandard(userId: string | null, code: string): Pr
     return false;
   }
 }
+export async function requireOwnerAdmin(): Promise<string> {
+  const { userId } = await auth();
+  if (!userId) throw new Error("unauthorized");
+  const role = await currentUserRole();
+  if (role !== "admin") throw new Error("forbidden");
+  if (process.env.OWNER_USER_ID && userId === process.env.OWNER_USER_ID) {
+    return userId;
+  }
+  throw new Error("forbidden");
+}

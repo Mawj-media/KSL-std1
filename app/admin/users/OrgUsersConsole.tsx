@@ -80,10 +80,12 @@ export function OrgUsersConsole({
   orgs,
   grants,
   standards,
+  currentUserId,
 }: {
   orgs: Org[];
   grants: Map<string, boolean>;
   standards: string[];
+  currentUserId: string | null;
 }) {
   const [selectedOrgId, setSelectedOrgId] = useState(orgs[0]?.id ?? null);
   const [grantMap, setGrantMap] = useState(grants);
@@ -97,6 +99,10 @@ export function OrgUsersConsole({
   const [inviteRole, setInviteRole] = useState<"org:admin" | "org:member">("org:member");
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
   const router = useRouter();
 
   async function toggle(userId: string, code: string, grant: boolean) {
@@ -175,6 +181,37 @@ export function OrgUsersConsole({
     }
   }
 
+  async function removeMember(user: Member) {
+    const confirmed = window.confirm(
+      `Delete ${user.name || user.email || "this user"} permanently?\n\nThis removes their account, progress, and access. This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setDeleteTarget(user.id);
+    setDeleteError(null);
+    setDeleteNotice(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data?.error ?? "Could not delete user");
+        return;
+      }
+      setRemovedIds((prev) => new Set(prev).add(user.id));
+      setDeleteNotice(`Deleted ${user.name || user.email || "user"}.`);
+      router.refresh();
+      for (let i = 0; i < 4; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        router.refresh();
+      }
+    } catch {
+      setDeleteError("Could not delete user");
+    } finally {
+      setDeleteTarget(null);
+      setBusy(false);
+    }
+  }
+
   const orgToolbar = (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
       {newOrgOpen ? (
@@ -232,7 +269,7 @@ export function OrgUsersConsole({
   }
 
   const org = orgs.find((o) => o.id === selectedOrgId) ?? orgs[0];
-  const members = org.members;
+  const members = org.members.filter((m) => !removedIds.has(m.id));
 
   const totalStandards = standards.length;
   const avgPct = members.length
@@ -336,6 +373,12 @@ export function OrgUsersConsole({
       {inviteNotice && (
         <p style={{ color: "#0F6E56", fontSize: 13, margin: "0 0 12px" }}>{inviteNotice}</p>
       )}
+      {deleteError && (
+        <p style={{ color: "#DC2626", fontSize: 13, margin: "0 0 12px" }}>{deleteError}</p>
+      )}
+      {deleteNotice && (
+        <p style={{ color: "#0F6E56", fontSize: 13, margin: "0 0 12px" }}>{deleteNotice}</p>
+      )}
 
       {members.length === 0 ? (
         <div className="org-section">
@@ -403,6 +446,26 @@ export function OrgUsersConsole({
                       );
                     })}
                     {standards.length === 0 && <p>No published standards yet.</p>}
+                  </div>
+                )}
+                {open && u.role !== "admin" && u.id !== currentUserId && (
+                  <div style={{ padding: "0 16px 14px" }}>
+                    <button
+                      onClick={() => removeMember(u)}
+                      disabled={busy}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #DC2626",
+                        background: "#FFFFFF",
+                        color: "#DC2626",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        opacity: busy ? 0.6 : 1,
+                      }}
+                    >
+                      {deleteTarget === u.id ? "Deleting..." : "Remove user"}
+                    </button>
                   </div>
                 )}
               </div>

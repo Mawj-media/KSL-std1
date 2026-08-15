@@ -14,17 +14,20 @@ export default clerkMiddleware(async (auth, req) => {
 
   const { userId } = await auth();
   if (!userId) {
-    const signInUrl = new URL("/sign-in", req.url);
     const ticket = req.nextUrl.searchParams.get("__clerk_ticket");
     if (ticket) {
-      signInUrl.searchParams.set("__clerk_ticket", ticket);
-      signInUrl.searchParams.set("redirect_url", req.nextUrl.pathname);
-    } else {
-      signInUrl.searchParams.set(
-        "redirect_url",
-        req.nextUrl.pathname + req.nextUrl.search,
-      );
+      const status = req.nextUrl.searchParams.get("__clerk_status");
+      const dest = new URL(status === "sign_up" ? "/sign-up" : "/sign-in", req.url);
+      dest.searchParams.set("__clerk_ticket", ticket);
+      if (status) dest.searchParams.set("__clerk_status", status);
+      dest.searchParams.set("redirect_url", req.nextUrl.pathname);
+      return NextResponse.redirect(dest);
     }
+    const signInUrl = new URL("/sign-in", req.url);
+    signInUrl.searchParams.set(
+      "redirect_url",
+      req.nextUrl.pathname + req.nextUrl.search,
+    );
     return NextResponse.redirect(signInUrl);
   }
 });

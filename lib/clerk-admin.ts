@@ -59,3 +59,6 @@ export async function createOrganizationInvitation(
     body: JSON.stringify({ email_address: email, role, redirect_url: redirectUrl }),
   });
 }
+export async function deleteUser(userId: string): Promise<{ id: string; deleted: boolean }> {
+  return bapi(`/users/${userId}`, { method: "DELETE" });
+}

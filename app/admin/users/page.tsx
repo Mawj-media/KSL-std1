@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from "../../../lib/supabase";
+import { auth } from "@clerk/nextjs/server";
 import { OrgUsersConsole } from "./OrgUsersConsole";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ type MemberRow = {
 type ProgressRow = { user_id: string; standard_code: string; status: string };
 
 export default async function AdminUsersPage() {
+  const { userId: currentUserId } = await auth();
+
   if (!isSupabaseConfigured()) {
     return (
       <div className="content">
@@ -77,6 +80,7 @@ export default async function AdminUsersPage() {
         orgs={orgs}
         grants={new Map((grants ?? []).map((g) => [`${g.user_id}:${g.standard_code}`, true]))}
         standards={publishedCodes}
+        currentUserId={currentUserId ?? null}
       />
     </div>
   );
