@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type Member = {
@@ -46,6 +47,35 @@ const STAT_COLORS: Record<Status, string> = {
   "N/A": "#D1D5DB",
 };
 
+const INPUT_STYLE: React.CSSProperties = {
+  padding: "8px 10px",
+  borderRadius: 8,
+  border: "1px solid #D1D5DB",
+  fontSize: 14,
+  minWidth: 220,
+  color: "#111827",
+};
+
+const PRIMARY_BTN: React.CSSProperties = {
+  padding: "8px 14px",
+  borderRadius: 8,
+  border: "none",
+  background: "#0F6E56",
+  color: "#FFFFFF",
+  fontSize: 14,
+  cursor: "pointer",
+};
+
+const SECONDARY_BTN: React.CSSProperties = {
+  padding: "8px 14px",
+  borderRadius: 8,
+  border: "1px solid #0F6E56",
+  background: "#FFFFFF",
+  color: "#0F6E56",
+  fontSize: 14,
+  cursor: "pointer",
+};
+
 export function OrgUsersConsole({
   orgs,
   grants,
@@ -59,6 +89,15 @@ export function OrgUsersConsole({
   const [grantMap, setGrantMap] = useState(grants);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [newOrgOpen, setNewOrgOpen] = useState(false);
+  const [newOrgName, setNewOrgName] = useState("");
+  const [newOrgError, setNewOrgError] = useState<string | null>(null);
+  const [newOrgNotice, setNewOrgNotice] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"org:admin" | "org:member">("org:member");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  const router = useRouter();
 
   async function toggle(userId: string, code: string, grant: boolean) {
     setBusy(true);
@@ -81,11 +120,109 @@ export function OrgUsersConsole({
     }
   }
 
+  async function createOrg() {
+    setBusy(true);
+    setNewOrgError(null);
+    setNewOrgNotice(null);
+    try {
+      const res = await fetch("/api/admin/organizations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newOrgName }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNewOrgError(data?.error ?? "Could not create organization");
+        return;
+      }
+      setNewOrgNotice(`Organization "${newOrgName.trim()}" created.`);
+      setNewOrgName("");
+      setNewOrgOpen(false);
+      router.refresh();
+    } catch {
+      setNewOrgError("Could not create organization");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendInvite() {
+    setBusy(true);
+    setInviteError(null);
+    setInviteNotice(null);
+    try {
+      const res = await fetch("/api/admin/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, orgId: org.id, orgRole: inviteRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setInviteError(data?.error ?? "Could not send invitation");
+        return;
+      }
+      setInviteNotice(`Invitation sent to ${inviteEmail.trim()}.`);
+      setInviteEmail("");
+    } catch {
+      setInviteError("Could not send invitation");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const orgToolbar = (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      {newOrgOpen ? (
+        <>
+          <input
+            type="text"
+            placeholder="Organization name"
+            value={newOrgName}
+            onChange={(e) => setNewOrgName(e.target.value)}
+            disabled={busy}
+            style={INPUT_STYLE}
+          />
+          <button
+            onClick={createOrg}
+            disabled={busy || !newOrgName.trim()}
+            style={PRIMARY_BTN}
+          >
+            Create organization
+          </button>
+          <button
+            onClick={() => {
+              setNewOrgOpen(false);
+              setNewOrgName("");
+              setNewOrgError(null);
+            }}
+            disabled={busy}
+            style={SECONDARY_BTN}
+          >
+            Cancel
+          </button>
+        </>
+      ) : (
+        <button onClick={() => setNewOrgOpen(true)} style={SECONDARY_BTN}>
+          New organization
+        </button>
+      )}
+    </div>
+  );
+
   if (orgs.length === 0) {
     return (
-      <p style={{ marginTop: 20 }}>
-        No organizations yet. They appear here once members are synced from Clerk.
-      </p>
+      <div>
+        {orgToolbar}
+        {newOrgError && (
+          <p style={{ color: "#DC2626", fontSize: 13, margin: "0 0 12px" }}>{newOrgError}</p>
+        )}
+        {newOrgNotice && (
+          <p style={{ color: "#0F6E56", fontSize: 13, margin: "0 0 12px" }}>{newOrgNotice}</p>
+        )}
+        <p style={{ marginTop: 20 }}>
+          No organizations yet. They appear here once members are synced from Clerk.
+        </p>
+      </div>
     );
   }
 
@@ -108,6 +245,13 @@ export function OrgUsersConsole({
 
   return (
     <div>
+      {orgToolbar}
+      {newOrgError && (
+        <p style={{ color: "#DC2626", fontSize: 13, margin: "0 0 12px" }}>{newOrgError}</p>
+      )}
+      {newOrgNotice && (
+        <p style={{ color: "#0F6E56", fontSize: 13, margin: "0 0 12px" }}>{newOrgNotice}</p>
+      )}
       <div className="org-selector" role="tablist" aria-label="Organizations">
         {orgs.map((o) => (
           <button
@@ -140,6 +284,53 @@ export function OrgUsersConsole({
           <div className="org-stat-label">Fully Compliant</div>
         </div>
       </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 16,
+          flexWrap: "wrap",
+          background: "#F3F4F6",
+          borderRadius: 12,
+          padding: 12,
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+          Invite member to {org.name}
+        </span>
+        <input
+          type="email"
+          placeholder="name@company.com"
+          value={inviteEmail}
+          onChange={(e) => setInviteEmail(e.target.value)}
+          disabled={busy}
+          style={INPUT_STYLE}
+        />
+        <select
+          value={inviteRole}
+          onChange={(e) => setInviteRole(e.target.value as "org:admin" | "org:member")}
+          disabled={busy}
+          style={{ ...INPUT_STYLE, minWidth: 140 }}
+        >
+          <option value="org:member">Member</option>
+          <option value="org:admin">Org admin</option>
+        </select>
+        <button
+          onClick={sendInvite}
+          disabled={busy || !inviteEmail.trim()}
+          style={PRIMARY_BTN}
+        >
+          Send invite
+        </button>
+      </div>
+      {inviteError && (
+        <p style={{ color: "#DC2626", fontSize: 13, margin: "0 0 12px" }}>{inviteError}</p>
+      )}
+      {inviteNotice && (
+        <p style={{ color: "#0F6E56", fontSize: 13, margin: "0 0 12px" }}>{inviteNotice}</p>
+      )}
 
       {members.length === 0 ? (
         <div className="org-section">
