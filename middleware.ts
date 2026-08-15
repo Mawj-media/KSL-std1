@@ -15,10 +15,16 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   if (!userId) {
     const signInUrl = new URL("/sign-in", req.url);
-    signInUrl.searchParams.set(
-      "redirect_url",
-      req.nextUrl.pathname + req.nextUrl.search,
-    );
+    const ticket = req.nextUrl.searchParams.get("__clerk_ticket");
+    if (ticket) {
+      signInUrl.searchParams.set("__clerk_ticket", ticket);
+      signInUrl.searchParams.set("redirect_url", req.nextUrl.pathname);
+    } else {
+      signInUrl.searchParams.set(
+        "redirect_url",
+        req.nextUrl.pathname + req.nextUrl.search,
+      );
+    }
     return NextResponse.redirect(signInUrl);
   }
 });

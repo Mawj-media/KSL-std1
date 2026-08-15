@@ -135,10 +135,15 @@ export function OrgUsersConsole({
         setNewOrgError(data?.error ?? "Could not create organization");
         return;
       }
-      setNewOrgNotice(`Organization "${newOrgName.trim()}" created.`);
+      const name = newOrgName.trim();
+      setNewOrgNotice(`Organization "${name}" created.`);
       setNewOrgName("");
       setNewOrgOpen(false);
       router.refresh();
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        router.refresh();
+      }
     } catch {
       setNewOrgError("Could not create organization");
     } finally {

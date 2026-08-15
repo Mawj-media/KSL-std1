@@ -5,13 +5,16 @@ import { useEffect, useState } from "react";
 import { SignUp } from "@clerk/nextjs";
 import { Brand } from "../../../lib/Brand";
 
-const TOKEN_PARAM = "__clerk_invitation_token";
+const TOKEN_PARAMS = ["__clerk_invitation_token", "__clerk_ticket", "__clerk_status"];
 
 function hasInvitationToken(): boolean {
   const url = window.location.href;
   const query = url.split("?")[1] ?? "";
-  if (new URLSearchParams(query).has(TOKEN_PARAM)) return true;
-  return /[?&#]__clerk_invitation_token=([^&]+)/.test(url);
+  const params = new URLSearchParams(query);
+  for (const name of TOKEN_PARAMS) {
+    if (params.has(name)) return true;
+  }
+  return TOKEN_PARAMS.some((name) => new RegExp(`[?&#]${name}=`).test(url));
 }
 
 export default function Page() {
