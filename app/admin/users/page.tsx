@@ -7,7 +7,7 @@ type MemberRow = {
   organization_id: string;
   user_id: string;
   org_role: string;
-  users: { name: string | null; email: string | null; role: string }[] | null;
+  users: { name: string | null; email: string | null; role: string } | { name: string | null; email: string | null; role: string }[] | null;
 };
 
 type ProgressRow = { user_id: string; standard_code: string; status: string };
@@ -53,14 +53,17 @@ export default async function AdminUsersPage() {
       id: o.id,
       name: o.name,
       memberCount: rows.length,
-      members: rows.map((m) => ({
-        id: m.user_id,
-        name: m.users?.[0]?.name ?? null,
-        email: m.users?.[0]?.email ?? null,
-        role: m.users?.[0]?.role ?? "client",
-        orgRole: m.org_role,
-        progress: progressByUser.get(m.user_id) ?? new Map<string, string>(),
-      })),
+      members: rows.map((m) => {
+        const user = Array.isArray(m.users) ? m.users[0] : m.users;
+        return {
+          id: m.user_id,
+          name: user?.name ?? null,
+          email: user?.email ?? null,
+          role: user?.role ?? "client",
+          orgRole: m.org_role,
+          progress: progressByUser.get(m.user_id) ?? new Map<string, string>(),
+        };
+      }),
     };
   });
 

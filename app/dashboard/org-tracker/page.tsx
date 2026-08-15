@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 type MemberRow = {
   user_id: string;
   org_role: string;
-  users: { name: string | null; email: string | null }[] | null;
+  users: { name: string | null; email: string | null } | { name: string | null; email: string | null }[] | null;
 };
 
 export default async function OrgTrackerPage() {
@@ -43,12 +43,15 @@ export default async function OrgTrackerPage() {
   return (
     <OrgTracker
       orgName={org?.name ?? "Organization"}
-      users={(members ?? []).map((m: MemberRow) => ({
-        id: m.user_id,
-        name: m.users?.[0]?.name ?? null,
-        email: m.users?.[0]?.email ?? null,
-        org_role: m.org_role,
-      }))}
+      users={(members ?? []).map((m: MemberRow) => {
+        const user = Array.isArray(m.users) ? m.users[0] : m.users;
+        return {
+          id: m.user_id,
+          name: user?.name ?? null,
+          email: user?.email ?? null,
+          org_role: m.org_role,
+        };
+      })}
       progress={progress as { user_id: string; standard_code: string; status: string; viewed_at: string | null; completed_at: string | null }[]}
     />
   );
