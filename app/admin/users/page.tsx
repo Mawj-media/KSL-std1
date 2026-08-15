@@ -26,7 +26,7 @@ export default async function AdminUsersPage() {
     await Promise.all([
       getSupabase()
         .from("organizations")
-        .select("id, name, clerk_org_id")
+        .select("id, name")
         .order("created_at", { ascending: true }),
       getSupabase()
         .from("organization_members")
@@ -52,7 +52,6 @@ export default async function AdminUsersPage() {
     return {
       id: o.id,
       name: o.name,
-      clerkOrgId: o.clerk_org_id,
       memberCount: rows.length,
       members: rows.map((m) => ({
         id: m.user_id,

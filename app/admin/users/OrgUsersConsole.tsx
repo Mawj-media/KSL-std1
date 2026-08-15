@@ -14,7 +14,6 @@ type Member = {
 type Org = {
   id: string;
   name: string;
-  clerkOrgId: string | null;
   memberCount: number;
   members: Member[];
 };
