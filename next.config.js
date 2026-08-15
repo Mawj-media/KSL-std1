@@ -19,14 +19,15 @@ const securityHeaders = [
 // The modules rely on inline <style>/<script> blocks, so inline sources must
 // stay allowed for scripts/styles; the iframe sandbox (allow-scripts only,
 // no allow-same-origin) is the primary isolation boundary for that content.
+// Clerk is served from the custom auth domain clerk.kslconsultancy.ca.
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev",
+  "script-src 'self' 'unsafe-inline' https://clerk.kslconsultancy.ca",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.clerk.accounts.dev wss://*.clerk.accounts.dev",
-  "frame-src 'self' https://*.clerk.accounts.dev",
+  "connect-src 'self' https://clerk.kslconsultancy.ca wss://clerk.kslconsultancy.ca",
+  "frame-src 'self' https://clerk.kslconsultancy.ca",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'none'",
