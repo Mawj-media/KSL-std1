@@ -34,7 +34,8 @@ if (!CLERK_SECRET_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   process.exit(1);
 }
 
-const ORG_ID = "org_3HpB3nLgBdp1zfbJSDeAipfCcaC";
+const ORG_NAME = "Acme Audit Ltd";
+let ORG_ID = null;
 const MAILTM = "https://api.mail.tm";
 const CLERK = "https://api.clerk.com/v1";
 
@@ -102,8 +103,34 @@ async function supabase(path, { method = "GET", body } = {}) {
 
 const rand = () => randomBytes(3).toString("hex");
 
+async function resolveOrgId() {
+  let orgs;
+  try {
+    orgs = await clerk("/organizations?limit=100");
+  } catch (e) {
+    throw new Error(
+      `Clerk Organizations unavailable: ${e.message}. Enable Organizations in Clerk Dashboard (Settings → Organizations), then re-run.`,
+    );
+  }
+  const list = Array.isArray(orgs) ? orgs : (orgs.data ?? []);
+  const existing = list.find((o) => o.name === ORG_NAME);
+  if (existing) {
+    console.log(`  org found: ${ORG_NAME} -> ${existing.id}`);
+    return existing.id;
+  }
+  const created = await clerk("/organizations", {
+    method: "POST",
+    body: { name: ORG_NAME },
+  });
+  console.log(`  created org: ${ORG_NAME} -> ${created.id}`);
+  return created.id;
+}
+
 async function main() {
-  console.log("=== Step 1: remove previous memberships + seeded users ===\n");
+  console.log("=== Step 0: resolve organization ===\n");
+  ORG_ID = await resolveOrgId();
+
+  console.log("\n=== Step 1: remove previous memberships + seeded users ===\n");
   for (const m of REMOVE_ORG_MEMBERSHIPS) {
     await clerk(`/organizations/${ORG_ID}/memberships/${m.clerkUserId}`, {
       method: "DELETE",
@@ -258,6 +285,11 @@ async function main() {
   }
 
   console.log("\n=== Step 6: Supabase mirror ===\n");
+  await supabase("/rest/v1/organizations", {
+    method: "POST",
+    body: { id: ORG_ID, name: ORG_NAME },
+  });
+  console.log(`  mirrored org: ${ORG_NAME}`);
   for (const c of created) {
     const name = c.role === "admin" ? ORG_ADMIN.name : c.name;
     await supabase("/rest/v1/users", {
