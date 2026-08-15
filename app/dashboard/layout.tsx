@@ -1,11 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import { Brand } from "../../lib/Brand";
-import { currentOrgContext } from "../../lib/auth";
+import { currentOrgContext, currentUserRole } from "../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const role = await currentUserRole();
+  if (role === "admin") redirect("/admin");
+
   const orgContext = await currentOrgContext();
 
   return (

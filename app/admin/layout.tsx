@@ -27,9 +27,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="nav-dot" /> Organizations & Users
           </Link>
           <div className="nav-label">Program</div>
-          <Link href="/dashboard" className="nav-item">
-            <span className="nav-dot" /> View client portal
-          </Link>
         </nav>
         <div className="sidebar-foot">
           © 2025 KSL - GRC Consultancy<br />
