@@ -106,6 +106,23 @@ a{color:inherit;text-decoration:none;}
 .admin-chevron{margin-left:auto;color:var(--ink-light);}
 .admin-grant-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;padding:12px 16px;border-top:1px solid var(--border);background:var(--paper);}
 
+/* Admin: organization selector + member completion */
+.org-selector{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 6px;}
+.org-selector-btn{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:8px 14px;border-radius:10px;border:1px solid var(--border-mid);background:#fff;color:var(--ink);cursor:pointer;transition:.15s;font-family:var(--font);}
+.org-selector-btn:hover{border-color:var(--teal);}
+.org-selector-btn.active{background:var(--ink);border-color:var(--ink);color:#fff;}
+.org-selector-count{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;background:var(--paper-dark);border-radius:20px;padding:1px 7px;}
+.org-selector-btn.active .org-selector-count{background:rgba(255,255,255,0.18);color:#fff;}
+.admin-user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--teal-dark));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;font-family:'DM Mono',ui-monospace,monospace;flex-shrink:0;}
+.admin-user-progress{display:flex;align-items:center;gap:8px;min-width:150px;}
+.admin-user-bar-wrap{flex:1;height:6px;background:var(--paper-dark);border-radius:3px;overflow:hidden;}
+.admin-user-bar{height:100%;background:var(--teal);border-radius:3px;transition:width .4s;}
+.admin-user-pct{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;font-weight:600;color:var(--ink);width:34px;text-align:right;}
+.admin-user-stats{display:flex;gap:14px;padding:0 16px 12px;flex-wrap:wrap;}
+.admin-user-stat{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-light);}
+.admin-user-stat b{font-family:'DM Mono',ui-monospace,monospace;font-size:12px;color:var(--ink);}
+.admin-user-stat-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
+
 /* Tracker */
 .tracker-stats{display:flex;gap:16px;margin-bottom:24px;}
 .tracker-stat{flex:1;max-width:180px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;}

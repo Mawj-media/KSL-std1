@@ -24,7 +24,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="nav-dot" /> Standards
           </Link>
           <Link href="/admin/users" className="nav-item">
-            <span className="nav-dot" /> Users & Access
+            <span className="nav-dot" /> Organizations & Users
           </Link>
           <div className="nav-label">Program</div>
           <Link href="/dashboard" className="nav-item">
@@ -40,7 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <header className="topbar">
           <div>
             <div className="topbar-title">Admin Console</div>
-            <div className="topbar-sub">Standards content, users and access</div>
+            <div className="topbar-sub">Standards content, organizations and users</div>
           </div>
           <UserButton userProfileUrl="/account" userProfileMode="navigation" />
         </header>

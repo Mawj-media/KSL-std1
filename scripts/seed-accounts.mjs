@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
  * Seeds the test organization with learners (mail.tm inboxes) and an org admin.
- * - Creates 5 mail.tm inboxes + Clerk users (org:member) for learners
+ * - Creates 4 mail.tm inboxes + Clerk users (org:member) for learners
  * - Creates Clerk user mawjahsan@gmail.com (org:admin)
  * - Mirrors all to Supabase
  * - Removes the two previous seeded users (Aisha Khan, Usman Ali)
  * Credentials are written to scripts/seeded-credentials.json (gitignored).
+ * Note: mail.tm new-account auth can lag several minutes; this script polls
+ * POST /token until the account authenticates before moving on.
+ * Manual mode: node scripts/seed-accounts.mjs --manual <inboxes.json>
+ * where inboxes.json is [{ "email": "...", "password": "..." }] (one per learner,
+ * in learner order) — skips mail.tm account creation entirely.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -40,6 +45,9 @@ const LEARNERS = [
   { first: "Omar", last: "Faroog" },
 ];
 const ORG_ADMIN = { email: "mawjahsan@gmail.com", name: "Mawj Ahsan" };
+
+const manualArgIndex = process.argv.indexOf("--manual");
+const MANUAL_INBOXES_FILE = manualArgIndex >= 0 ? process.argv[manualArgIndex + 1] : null;
 
 // Ahsan Mawji: global app admin (users.role = 'admin'), not an org member.
 const REMOVE_ORG_MEMBERSHIPS = [
@@ -119,7 +127,7 @@ async function main() {
   const existingUsers = await clerk("/users?limit=100");
   const userList = Array.isArray(existingUsers) ? existingUsers : (existingUsers.data ?? []);
   const stale = userList.filter((u) =>
-    (u.email_addresses ?? []).some((e) => e.email_address.endsWith("@emalupe.com")),
+    (u.email_addresses ?? []).some((e) => /@(emalupe\.com|guerrillamail|grr\.la)/.test(e.email_address)),
   );
   for (const u of stale) {
     await clerk(`/users/${u.id}`, { method: "DELETE" });
@@ -129,21 +137,55 @@ async function main() {
   }
   if (stale.length === 0) console.log("  none");
 
-  console.log("\n=== Step 3: mail.tm inboxes ===\n");
-  const [domain] = await api(MAILTM, "/domains", { headers: { Accept: "application/json" } });
-  const domainName = domain.domain;
-  const inboxes = [];
-  for (let i = 0; i < LEARNERS.length; i++) {
-    const address = `ksl.learner${i + 1}.${rand()}@${domainName}`;
-    const password = `KslLearner2026!${i + 1}${rand()}`;
-    await api(MAILTM, "/accounts", {
-      method: "POST",
-      headers: { Accept: "application/json" },
-      body: { address, password },
-    });
-    inboxes.push({ address, password });
-    console.log(`  inbox ${i + 1}: ${address}`);
-    await new Promise((r) => setTimeout(r, 10000));
+  console.log("\n=== Step 3: inboxes ===\n");
+  let inboxes;
+  if (MANUAL_INBOXES_FILE) {
+    const manual = JSON.parse(readFileSync(MANUAL_INBOXES_FILE, "utf8"));
+    if (!Array.isArray(manual) || manual.length !== LEARNERS.length) {
+      throw new Error(`Manual inboxes file must be an array of exactly ${LEARNERS.length} objects`);
+    }
+    inboxes = manual.map((m) => ({ address: m.email, password: m.password }));
+    inboxes.forEach((c, i) => console.log(`  manual ${i + 1}: ${c.address}`));
+  } else {
+    const [domain] = await api(MAILTM, "/domains", { headers: { Accept: "application/json" } });
+    const domainName = domain.domain;
+    const candidates = [];
+    for (let i = 0; i < LEARNERS.length; i++) {
+      const address = `ksl.learner${i + 1}.${rand()}@${domainName}`;
+      const password = `KslLearner2026!${i + 1}${rand()}`;
+      await api(MAILTM, "/accounts", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: { address, password },
+      }).catch(() => {});
+      candidates.push({ address, password });
+      console.log(`  created ${i + 1}: ${address} (waiting for auth to settle)`);
+    }
+    inboxes = [];
+    const deadline = Date.now() + 45 * 60 * 1000;
+    while (candidates.length > 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 30000));
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        const c = candidates[i];
+        try {
+          const tok = await api(MAILTM, "/token", {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            body: { address: c.address, password: c.password },
+          });
+          if (tok.token) {
+            inboxes.push(c);
+            candidates.splice(i, 1);
+            console.log(`  inbox authenticated: ${c.address}`);
+          }
+        } catch {
+          // still settling; keep polling
+        }
+      }
+    }
+    if (candidates.length > 0) {
+      throw new Error(`mail.tm accounts never authenticated: ${candidates.map((c) => c.address).join(", ")}`);
+    }
   }
 
   console.log("\n=== Step 4: Clerk users ===\n");
@@ -175,16 +217,24 @@ async function main() {
   for (let i = 0; i < LEARNERS.length; i++) {
     const learner = LEARNERS[i];
     const inbox = inboxes[i];
+    const clerkPassword = inbox.password;
     const user = await clerk("/users", {
       method: "POST",
       body: {
         email_address: [inbox.address],
-        password: inbox.password,
+        password: clerkPassword,
         first_name: learner.first,
         last_name: learner.last,
       },
     });
-    created.push({ clerkId: user.id, email: inbox.address, role: "member", name: `${learner.first} ${learner.last}`, inboxPassword: inbox.password });
+    created.push({
+      clerkId: user.id,
+      email: inbox.address,
+      role: "member",
+      name: `${learner.first} ${learner.last}`,
+      clerkPassword,
+      inboxPassword: inbox.password,
+    });
     console.log(`  learner ${i + 1}: ${learner.first} ${learner.last} -> ${user.id}`);
   }
 
@@ -228,7 +278,7 @@ async function main() {
     learners: created
       .filter((c) => c.role === "member")
       .map((c) => {
-        return { email: c.email, password: c.inboxPassword, clerk_id: c.clerkId };
+        return { email: c.email, password: c.clerkPassword, inbox_password: c.inboxPassword, clerk_id: c.clerkId };
       }),
   };
   writeFileSync(

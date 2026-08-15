@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Reads the latest Clerk verification code from a mail.tm inbox.
+ * Reads the latest Clerk verification code from a seeded mail.tm inbox.
  * Usage: node scripts/read-code.mjs <email>   (or "all" to scan every seeded inbox)
  */
 import { readFileSync } from "node:fs";
@@ -16,43 +16,43 @@ function loadCredentials() {
   }
 }
 
-async function api(path, { method = "GET", headers = {}, body } = {}) {
-  const res = await fetch(`${MAILTM}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", Accept: "application/json", ...headers },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
-  return res.json();
-}
-
 async function readInbox(address, password) {
-  const { token } = await api("/token", { method: "POST", body: { address, password } });
-  const auth = { Authorization: `Bearer ${token}` };
-  const messages = await api("/messages", { headers: auth });
-  const latest = messages[0];
-  if (!latest) return { address, code: null, subject: null };
-  const full = await api(`/messages/${latest.id}`, { headers: auth });
-  const text = `${full.subject ?? ""} ${full.text ?? ""} ${full.html?.[0] ?? ""}`.replace(/<[^>]+>/g, " ");
+  const tokenRes = await fetch(`${MAILTM}/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ address, password }),
+  });
+  if (!tokenRes.ok) return { code: null, subject: null, error: `token ${tokenRes.status}` };
+  const { token } = await tokenRes.json();
+  const listRes = await fetch(`${MAILTM}/messages?page=1`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!listRes.ok) return { code: null, subject: null, error: `messages ${listRes.status}` };
+  const list = await listRes.json();
+  const latest = (list["hydra:member"] ?? list)[0];
+  if (!latest) return { code: null, subject: null, error: null };
+  const mailRes = await fetch(`${MAILTM}/messages/${latest.id}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  const mail = await mailRes.json();
+  const text = `${mail.subject ?? ""} ${mail.text ?? ""} ${mail.html ?? ""}`.replace(/<[^>]+>/g, " ");
   const match = text.match(/\b(\d{6})\b/);
-  return { address, code: match ? match[1] : null, subject: full.subject ?? null };
+  return { code: match ? match[1] : null, subject: mail.subject ?? null, error: null };
 }
 
 async function main() {
   const creds = loadCredentials();
   const target = process.argv[2];
-  const inboxes =
-    target === "all"
-      ? creds.learners
-      : creds.learners.filter((l) => l.email === target);
-  if (target !== "all" && inboxes.length === 0) {
+  const learners =
+    target === "all" ? creds.learners : creds.learners.filter((l) => l.email === target);
+  if (target !== "all" && learners.length === 0) {
     console.error(`No seeded inbox for ${target}. Use "all" or a seeded learner email.`);
     process.exit(1);
   }
-  for (const inbox of inboxes) {
-    const result = await readInbox(inbox.email, inbox.password);
+  for (const learner of learners) {
+    const result = await readInbox(learner.email, learner.inbox_password ?? learner.password);
     console.log(
-      `${result.address}: ${result.code ? `code ${result.code}` : "no code yet"}` +
+      `${learner.email}: ${result.code ? `code ${result.code}` : result.error ?? "no code yet"}` +
         (result.subject ? ` (${result.subject})` : ""),
     );
   }

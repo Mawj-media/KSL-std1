@@ -1,36 +1,78 @@
 import { getSupabase, isSupabaseConfigured } from "../../../lib/supabase";
-import { UsersTable } from "./UsersTable";
+import { OrgUsersConsole } from "./OrgUsersConsole";
 
 export const dynamic = "force-dynamic";
 
-type UserRow = { id: string; email: string | null; name: string | null; role: string };
+type MemberRow = {
+  organization_id: string;
+  user_id: string;
+  org_role: string;
+  users: { name: string | null; email: string | null; role: string }[] | null;
+};
+
+type ProgressRow = { user_id: string; standard_code: string; status: string };
 
 export default async function AdminUsersPage() {
   if (!isSupabaseConfigured()) {
     return (
       <div className="content">
-        <div className="topbar-title">Users & Access</div>
+        <div className="topbar-title">Organizations & Users</div>
         <p style={{ marginTop: 20 }}>Supabase is not configured yet.</p>
       </div>
     );
   }
 
-  const [{ data: users }, { data: grants }, { data: standards }] = await Promise.all([
-    getSupabase().from("users").select("id, email, name, role").order("created_at", { ascending: false }),
-    getSupabase().from("access_grants").select("user_id, standard_code"),
-    getSupabase().from("standards").select("code").eq("content_status", "published"),
-  ]);
+  const [{ data: organizations }, { data: members }, { data: progress }, { data: grants }, { data: standards }] =
+    await Promise.all([
+      getSupabase()
+        .from("organizations")
+        .select("id, name, clerk_org_id")
+        .order("created_at", { ascending: true }),
+      getSupabase()
+        .from("organization_members")
+        .select("organization_id, user_id, org_role, users(name, email, role)")
+        .order("joined_at", { ascending: true }),
+      getSupabase().from("progress").select("user_id, standard_code, status"),
+      getSupabase().from("access_grants").select("user_id, standard_code"),
+      getSupabase().from("standards").select("code").eq("content_status", "published"),
+    ]);
 
   const publishedCodes = (standards ?? []).map((s) => s.code).sort();
+  const memberRows = (members ?? []) as MemberRow[];
+
+  const progressByUser = new Map<string, Map<string, string>>();
+  for (const p of (progress ?? []) as ProgressRow[]) {
+    const userMap = progressByUser.get(p.user_id) ?? new Map<string, string>();
+    userMap.set(p.standard_code, p.status);
+    progressByUser.set(p.user_id, userMap);
+  }
+
+  const orgs = (organizations ?? []).map((o) => {
+    const rows = memberRows.filter((m) => m.organization_id === o.id);
+    return {
+      id: o.id,
+      name: o.name,
+      clerkOrgId: o.clerk_org_id,
+      memberCount: rows.length,
+      members: rows.map((m) => ({
+        id: m.user_id,
+        name: m.users?.[0]?.name ?? null,
+        email: m.users?.[0]?.email ?? null,
+        role: m.users?.[0]?.role ?? "client",
+        orgRole: m.org_role,
+        progress: progressByUser.get(m.user_id) ?? new Map<string, string>(),
+      })),
+    };
+  });
 
   return (
     <div className="content">
-      <div className="topbar-title">Users & Access</div>
+      <div className="topbar-title">Organizations & Users</div>
       <div className="topbar-sub">
-        Grant or revoke per-standard access. Roles sync from Clerk.
+        Switch organizations to review member completion and grant or revoke per-standard access.
       </div>
-      <UsersTable
-        users={(users ?? []) as UserRow[]}
+      <OrgUsersConsole
+        orgs={orgs}
         grants={new Map((grants ?? []).map((g) => [`${g.user_id}:${g.standard_code}`, true]))}
         standards={publishedCodes}
       />
