@@ -62,3 +62,31 @@ export async function createOrganizationInvitation(
 export async function deleteUser(userId: string): Promise<{ id: string; deleted: boolean }> {
   return bapi(`/users/${userId}`, { method: "DELETE" });
 }
+
+export async function findUserByEmail(email: string): Promise<{ id: string; email_addresses: { email_address: string }[] } | null> {
+  const res = await bapi<{ data: Array<{ id: string; email_addresses: { email_address: string }[] }> }>(
+    `/users?email_address=${encodeURIComponent(email)}&limit=1`,
+  );
+  return res.data?.[0] ?? null;
+}
+
+export async function listUserOrganizationMemberships(userId: string): Promise<Array<{
+  id: string;
+  organization_id: string;
+  role: "org:admin" | "org:member";
+  created_at: string;
+}>> {
+  const res = await bapi<{ data: Array<{
+    id: string;
+    organization_id: string;
+    role: "org:admin" | "org:member";
+    created_at: string;
+  }> }>(
+    `/users/${userId}/organization_memberships`,
+  );
+  return res.data ?? [];
+}
+
+export async function deleteOrganizationMembership(orgId: string, userId: string): Promise<{ id: string; deleted: boolean }> {
+  return bapi(`/organizations/${orgId}/memberships/${userId}`, { method: "DELETE" });
+}

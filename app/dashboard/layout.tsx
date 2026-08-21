@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { Brand } from "../../lib/Brand";
 import { currentOrgContext, currentUserRole } from "../../lib/auth";
+import { getSupabase } from "../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (role === "admin") redirect("/admin");
 
   const orgContext = await currentOrgContext();
+
+  let orgName = "No Organization";
+  if (orgContext?.orgId) {
+    const { data } = await getSupabase()
+      .from("organizations")
+      .select("name")
+      .eq("id", orgContext.orgId)
+      .maybeSingle();
+    if (data?.name) orgName = data.name;
+  }
 
   return (
     <div className="shell">
@@ -40,7 +51,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <div className="topbar-sub">IIA Global Internal Audit Standards 2024</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <OrganizationSwitcher />
+            <span
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                background: "#0F6E56",
+                color: "#FFFFFF",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {orgName}
+            </span>
             <UserButton userProfileUrl="/account" userProfileMode="navigation" />
           </div>
         </header>

@@ -1,5 +1,6 @@
 import { requireAdmin } from "../../../../lib/auth";
-import { ClerkApiError, createOrganizationInvitation } from "../../../../lib/clerk-admin";
+import { ClerkApiError, createOrganizationInvitation, findUserByEmail, listUserOrganizationMemberships } from "../../../../lib/clerk-admin";
+import { getSupabase } from "../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,25 @@ export async function POST(req: Request) {
   }
   if (orgRole !== "org:admin" && orgRole !== "org:member") {
     return Response.json({ error: "Role must be org:admin or org:member" }, { status: 400 });
+  }
+
+  // Single-org policy: check if user already belongs to an organization
+  const existingUser = await findUserByEmail(email.trim());
+  if (existingUser) {
+    const memberships = await listUserOrganizationMemberships(existingUser.id);
+    if (memberships.length > 0) {
+      // Fetch org name for the error message
+      const { data: orgData } = await getSupabase()
+        .from("organizations")
+        .select("name")
+        .eq("id", memberships[0].organization_id)
+        .maybeSingle();
+      const orgName = orgData?.name ?? memberships[0].organization_id;
+      return Response.json(
+        { error: `This user already belongs to ${orgName} — each user can only join one organization.` },
+        { status: 400 },
+      );
+    }
   }
 
   const redirectUrl = new URL("/dashboard", req.url).toString();

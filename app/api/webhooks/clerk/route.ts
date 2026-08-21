@@ -2,6 +2,7 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { getSupabase } from "../../../../lib/supabase";
 import { deleteClerkEmail, fetchClerkUser, primaryEmailOf } from "../../../../lib/clerk-sync";
+import { listUserOrganizationMemberships, deleteOrganizationMembership } from "../../../../lib/clerk-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,43 @@ type ClerkEmailEvent = {
 };
 
 const MAX_EMAILS_PER_USER = 1;
+
+async function enforceSingleOrgPolicy(membership: ClerkMembership) {
+  const userId = membership.public_user_data?.user_id;
+  const orgId = membership.organization?.id;
+  if (!userId || !orgId) return;
+
+  // Check if user is admin (exempt from single-org policy)
+  const { data: userRow } = await getSupabase()
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (userRow?.role === "admin") return;
+
+  const memberships = await listUserOrganizationMemberships(userId);
+  if (memberships.length <= 1) return;
+
+  // Find the newest membership by created_at
+  const sorted = [...memberships].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const newest = sorted[0];
+
+  // Delete the newest membership (should be the one that just triggered this webhook)
+  try {
+    await deleteOrganizationMembership(newest.organization_id, userId);
+    await getSupabase().from("activity_events").insert({
+      user_id: userId,
+      event_type: "membership_removed",
+      metadata: {
+        removed_org_id: newest.organization_id,
+        kept_org_id: sorted[1]?.organization_id ?? null,
+        reason: "single_org_policy",
+      },
+    });
+  } catch (err) {
+    console.error("Single-org enforcement failed:", err);
+  }
+}
 
 async function syncUserEmail(userId: string) {
   const user = await fetchClerkUser(userId);
@@ -172,7 +210,12 @@ export async function POST(req: Request) {
       await getSupabase().from("organizations").delete().eq("id", (data as { id: string }).id);
       break;
     }
-    case "organizationMembership.created":
+    case "organizationMembership.created": {
+      const m = data as ClerkMembership;
+      await syncMembership(m);
+      await enforceSingleOrgPolicy(m);
+      break;
+    }
     case "organizationMembership.updated": {
       await syncMembership(data as ClerkMembership);
       break;
