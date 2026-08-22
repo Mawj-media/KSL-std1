@@ -1,4 +1,4 @@
-import { requireOwnerAdmin } from "../../../../lib/auth";
+import { requireAdmin } from "../../../../lib/auth";
 import { ClerkApiError, createImpersonationToken, findUserByEmail } from "../../../../lib/clerk-admin";
 import { cookies } from "next/headers";
 
@@ -9,7 +9,7 @@ const IMPERSONATION_TTL = 60 * 15; // 15 minutes
 
 export async function POST(req: Request) {
   try {
-    await requireOwnerAdmin();
+    await requireAdmin();
   } catch {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }

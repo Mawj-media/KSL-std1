@@ -238,13 +238,19 @@ export function OrgUsersConsole({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setImpersonateTarget(null);
-        window.location.href = "/dashboard";
-      } else {
-        alert(data?.error ?? "Could not impersonate user");
+      if (!res.ok) {
+        let msg = "Could not impersonate user";
+        try {
+          const data = await res.json();
+          msg = data?.error ?? msg;
+        } catch {}
+        alert(msg);
+        return;
       }
+      setImpersonateTarget(null);
+      window.location.href = "/dashboard";
+    } catch {
+      alert("Could not connect to server");
     } finally {
       setBusy(false);
     }
