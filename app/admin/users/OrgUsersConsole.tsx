@@ -82,6 +82,7 @@ export function OrgUsersConsole({
   const [editTarget, setEditTarget] = useState<Member | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [newOrgOpen, setNewOrgOpen] = useState(false);
 
@@ -251,6 +252,21 @@ export function OrgUsersConsole({
     }
   }
 
+  async function changeEmail() {
+    if (!editTarget || !editEmail.trim()) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${editTarget.id}/email`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: editEmail.trim() }),
+      });
+      if (res.ok) { setEditTarget(null); router.refresh(); }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function resendInvitation(invitationId: string) {
     if (!org) return;
     setBusy(true);
@@ -349,6 +365,7 @@ export function OrgUsersConsole({
     const parts = (m.name ?? "").split(" ");
     setEditFirstName(parts[0] ?? "");
     setEditLastName(parts.slice(1).join(" "));
+    setEditEmail(m.email ?? "");
     setEditTarget(m);
   }
 
@@ -740,7 +757,11 @@ export function OrgUsersConsole({
             </div>
             <div className="modal__field">
               <label className="modal__label">Email</label>
-              <div className="modal__help">{editTarget.email}</div>
+              <input className="modal__input" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} disabled={busy} />
+            </div>
+            <div className="modal__footer" style={{ padding: 0 }}>
+              <button className="btn-secondary" onClick={() => setEditTarget(null)} disabled={busy}>Cancel</button>
+              <button className="btn-primary" onClick={changeEmail} disabled={busy || !editEmail.trim() || editEmail === editTarget.email}>Save email</button>
             </div>
           </>
         )}
