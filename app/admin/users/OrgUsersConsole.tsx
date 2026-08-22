@@ -178,6 +178,36 @@ export function OrgUsersConsole({
     }
   }
 
+  async function bulkGrantStandard(standardCode: string, grant: boolean) {
+    if (!org) return;
+    const action = grant ? "grant" : "revoke";
+    const confirmed = window.confirm(
+      `${grant ? "Grant" : "Revoke"} "${standardCode}" for ALL ${org.memberCount} member(s) of ${org.name}?`
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/grants/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: org.id, standardCode, action }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setGrantMap((prev) => {
+          const next = new Map(prev);
+          for (const m of org.members) {
+            if (grant) next.set(`${m.id}:${standardCode}`, true);
+            else next.delete(`${m.id}:${standardCode}`);
+          }
+          return next;
+        });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function createOrg() {
     setBusy(true);
     setNewOrgError(null);
@@ -502,6 +532,40 @@ export function OrgUsersConsole({
               <div className="org-stat-label">Fully Compliant</div>
             </div>
           </div>
+
+          {viewAs === "platform-admin" && org && standards.length > 0 && (
+            <div className="bulk-grant-section">
+              <div className="bulk-grant-section__label">Bulk Grant Standards</div>
+              <div className="bulk-grant-section__grid">
+                {standards.map((code) => {
+                  const allGranted = org.members.every((m) => grantMap.has(`${m.id}:${code}`));
+                  const noneGranted = org.members.every((m) => !grantMap.has(`${m.id}:${code}`));
+                  return (
+                    <div className="bulk-grant-item" key={code}>
+                      <span className="bulk-grant-item__code">{code}</span>
+                      <span className="bulk-grant-item__status">
+                        {allGranted ? "All granted" : noneGranted ? "None granted" : "Partial"}
+                      </span>
+                      <button
+                        className="bulk-grant-item__btn"
+                        onClick={() => bulkGrantStandard(code, true)}
+                        disabled={busy || allGranted}
+                      >
+                        Grant all
+                      </button>
+                      <button
+                        className="bulk-grant-item__btn bulk-grant-item__btn--danger"
+                        onClick={() => bulkGrantStandard(code, false)}
+                        disabled={busy || noneGranted}
+                      >
+                        Revoke all
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="search-filter-bar">
         <div className="search-filter-bar__search">
