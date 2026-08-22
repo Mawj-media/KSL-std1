@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from "../../../lib/supabase";
 import { auth } from "@clerk/nextjs/server";
+import { listOrganizationInvitations } from "../../../lib/clerk-admin";
 import { OrgUsersConsole } from "./OrgUsersConsole";
 
 export const dynamic = "force-dynamic";
@@ -58,20 +59,13 @@ export default async function AdminUsersPage() {
     progressByUser.set(p.user_id, userMap);
   }
 
-  // Fetch invitations for each org from Clerk via API route
+  // Fetch invitations for each org directly from Clerk BAPI
   const orgsWithInvitations = await Promise.all(
     (organizations ?? []).map(async (o) => {
       const rows = memberRows.filter((m) => m.organization_id === o.id);
-      // Fetch invitations from Clerk
       let invitations: InvitationRow[] = [];
       try {
-        const res = await fetch(new URL(`/api/admin/invitations?orgId=${o.id}`, process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"), {
-          headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          invitations = data.invitations ?? [];
-        }
+        invitations = await listOrganizationInvitations(o.id);
       } catch {
         // Ignore invitation fetch errors
       }
