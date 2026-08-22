@@ -112,19 +112,6 @@ export async function updateMembershipRole(
   });
 }
 
-export async function createImpersonationToken(
-  userId: string,
-  expiresInSeconds: number,
-): Promise<{ token: string }> {
-  return bapi(`/users/${userId}/impersonation_tokens`, {
-    method: "POST",
-    body: JSON.stringify({
-      expires_in_seconds: expiresInSeconds,
-      actor: "admin",
-    }),
-  });
-}
-
 export async function resendOrganizationInvitation(
   orgId: string,
   invitationId: string,

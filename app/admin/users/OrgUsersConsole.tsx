@@ -66,7 +66,6 @@ export function OrgUsersConsole({
   const [editTarget, setEditTarget] = useState<Member | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
-  const [impersonateTarget, setImpersonateTarget] = useState<Member | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [newOrgOpen, setNewOrgOpen] = useState(false);
 
@@ -225,32 +224,6 @@ export function OrgUsersConsole({
         body: JSON.stringify({ orgRole, orgId: org?.id }),
       });
       if (res.ok) { setEditTarget(null); router.refresh(); }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function impersonate(userId: string) {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/admin/impersonate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      if (!res.ok) {
-        let msg = "Could not impersonate user";
-        try {
-          const data = await res.json();
-          msg = data?.error ?? msg;
-        } catch {}
-        alert(msg);
-        return;
-      }
-      setImpersonateTarget(null);
-      window.location.href = "/dashboard";
-    } catch {
-      alert("Could not connect to server");
     } finally {
       setBusy(false);
     }
@@ -490,9 +463,6 @@ export function OrgUsersConsole({
                         <button className="member-panel__btn" onClick={(e) => { e.stopPropagation(); openEditModal(u); }}>
                           Edit user
                         </button>
-                        <button className="member-panel__btn" onClick={(e) => { e.stopPropagation(); setImpersonateTarget(u); }}>
-                          Impersonate
-                        </button>
                         {u.id !== currentUserId && u.role !== "admin" && (
                           <button
                             className="member-panel__btn member-panel__btn--danger"
@@ -573,32 +543,6 @@ export function OrgUsersConsole({
         )}
       </Modal>
 
-      {/* Impersonate Modal */}
-      <Modal open={!!impersonateTarget} onClose={() => setImpersonateTarget(null)} title="Impersonate user">
-        {impersonateTarget && (
-          <>
-            <div className="modal__notice">
-              You will be signed in as {impersonateTarget.name || impersonateTarget.email} with read-only access. This session expires in 15 minutes.
-            </div>
-            <div className="modal__field">
-              <div className="modal__label">User</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
-                <Avatar name={impersonateTarget.name} email={impersonateTarget.email} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{impersonateTarget.name || "Unnamed"}</div>
-                  <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{impersonateTarget.email}</div>
-                </div>
-              </div>
-            </div>
-            <div className="modal__footer" style={{ padding: 0 }}>
-              <button className="btn-secondary" onClick={() => setImpersonateTarget(null)} disabled={busy}>Cancel</button>
-              <button className="btn-primary" onClick={() => impersonateTarget && impersonate(impersonateTarget.id)} disabled={busy}>
-                {busy ? "Starting session..." : "Start impersonation"}
-              </button>
-            </div>
-          </>
-        )}
-      </Modal>
     </div>
   );
 }
