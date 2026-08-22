@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { requireOrgAdmin } from "../../../../lib/auth";
 import { getSupabase } from "../../../../lib/supabase";
+import { canAccessStandardForOrg } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,16 @@ export async function PATCH(req: Request) {
 
     if (!member) {
       return Response.json({ error: "Target user is not a member of your organization" }, { status: 403 });
+    }
+
+    const { userId: adminId } = await auth();
+    if (!adminId) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const hasAccess = await canAccessStandardForOrg(userId, standardCode, { orgId, orgRole: "admin" });
+    if (!hasAccess) {
+      return Response.json({ error: "Target user does not have access to this standard" }, { status: 403 });
     }
 
     const now = new Date().toISOString();

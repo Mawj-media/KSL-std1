@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSupabase } from "../../../lib/supabase";
+import { canAccessStandard } from "../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,10 @@ export async function GET(req: Request) {
   const standardCode = new URL(req.url).searchParams.get("standardCode");
   if (!standardCode) {
     return Response.json({ error: "Missing standardCode" }, { status: 400 });
+  }
+
+  if (!(await canAccessStandard(userId, standardCode))) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {
@@ -40,6 +45,10 @@ export async function POST(req: Request) {
 
   if (typeof standardCode !== "string" || !["viewed", "completed"].includes(action)) {
     return Response.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  if (!(await canAccessStandard(userId, standardCode))) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   if (answered !== undefined || total !== undefined) {

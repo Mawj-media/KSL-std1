@@ -67,12 +67,14 @@ export async function requireOrgAdmin(): Promise<string> {
   return ctx.orgId;
 }
 
-export async function canAccessStandard(userId: string | null, code: string): Promise<boolean> {
-  if (!userId) return false;
+export async function canAccessStandardForOrg(
+  userId: string,
+  code: string,
+  orgContext: OrgContext
+): Promise<boolean> {
   const role = await currentUserRole();
   if (role === "admin") return true;
-  const orgContext = await currentOrgContext();
-  if (orgContext) return true;
+  if (orgContext.orgRole === "admin") return true;
   try {
     const { data } = await getSupabase()
       .from("access_grants")
@@ -85,6 +87,44 @@ export async function canAccessStandard(userId: string | null, code: string): Pr
     return false;
   }
 }
+
+export async function canAccessStandard(userId: string | null, code: string): Promise<boolean> {
+  if (!userId) return false;
+  const role = await currentUserRole();
+  if (role === "admin") return true;
+  const orgContext = await currentOrgContext();
+  if (!orgContext) return false;
+  if (orgContext.orgRole === "admin") return true;
+  try {
+    const { data } = await getSupabase()
+      .from("access_grants")
+      .select("standard_code")
+      .eq("user_id", userId)
+      .eq("standard_code", code)
+      .maybeSingle();
+    return Boolean(data);
+  } catch {
+    return false;
+  }
+}
+export async function requireStandardAccess(code: string): Promise<{ userId: string; orgId: string }> {
+  const { userId } = await auth();
+  if (!userId) throw new Error("unauthorized");
+  const role = await currentUserRole();
+  if (role === "admin") return { userId, orgId: "" };
+  const orgContext = await currentOrgContext();
+  if (!orgContext) throw new Error("forbidden");
+  if (orgContext.orgRole === "admin") return { userId, orgId: orgContext.orgId };
+  const { data } = await getSupabase()
+    .from("access_grants")
+    .select("standard_code")
+    .eq("user_id", userId)
+    .eq("standard_code", code)
+    .maybeSingle();
+  if (!data) throw new Error("forbidden");
+  return { userId, orgId: orgContext.orgId };
+}
+
 export async function requireOwnerAdmin(): Promise<string> {
   const { userId } = await auth();
   if (!userId) throw new Error("unauthorized");

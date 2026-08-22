@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { STRUCTURE } from "../../lib/standards";
 import { getSupabase, isSupabaseConfigured } from "../../lib/supabase";
+import { currentUserRole, currentOrgContext } from "../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,31 @@ export default async function Dashboard() {
 
   let rows = new Map<string, StandardRow>();
   let progress = new Map<string, string>();
+  let grantedCodes: Set<string> | null = null;
+
   if (isSupabaseConfigured()) {
+    const role = await currentUserRole();
+    const isAdmin = role === "admin";
+    const orgCtx = await currentOrgContext();
+    const isOrgAdmin = orgCtx?.orgRole === "admin";
+
     const [{ data: stds }, { data: prog }] = await Promise.all([
       getSupabase().from("standards").select("code, content_status, available"),
       userId
         ? getSupabase().from("progress").select("standard_code, status").eq("user_id", userId)
         : Promise.resolve({ data: [] as ProgressRow[] }),
     ]);
+
     rows = new Map((stds ?? []).map((r) => [r.code, r as StandardRow]));
     progress = new Map((prog ?? []).map((p) => [p.standard_code, p.status]));
+
+    if (userId && !isAdmin && !isOrgAdmin && orgCtx) {
+      const { data: grants } = await getSupabase()
+        .from("access_grants")
+        .select("standard_code")
+        .eq("user_id", userId);
+      grantedCodes = new Set((grants ?? []).map((g) => g.standard_code));
+    }
   }
 
   return (
@@ -40,7 +57,8 @@ export default async function Dashboard() {
                   const published =
                     !isSupabaseConfigured() || row?.content_status === "published";
                   const status = progress.get(st.slug);
-                  const openable = available && published;
+                  const hasGrant = grantedCodes === null || grantedCodes.has(st.slug);
+                  const openable = available && published && hasGrant;
                   const inner = (
                     <>
                       <span className="std-code">{st.code}</span>
@@ -57,6 +75,7 @@ export default async function Dashboard() {
                       )}
                     </>
                   );
+                  if (!hasGrant) return null;
                   return openable ? (
                     <Link key={st.code} href={`/dashboard/standard/${st.slug}`} className="std-card available">
                       {inner}
