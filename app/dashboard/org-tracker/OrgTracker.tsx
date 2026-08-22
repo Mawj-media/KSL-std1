@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import { STRUCTURE } from "../../../lib/standards";
 
 export type OrgUser = {
@@ -23,7 +23,6 @@ type Status = "Not Started" | "In Progress" | "Completed" | "N/A";
 type View = "dashboard" | `user-${string}`;
 
 const STATUSES: Status[] = ["Not Started", "In Progress", "Completed", "N/A"];
-const FILTERS = ["All", ...STATUSES];
 
 const STANDARDS = STRUCTURE.flatMap((d) => d.principles).flatMap((p) => p.standards);
 
@@ -32,15 +31,6 @@ function statusFor(row: { status: string } | undefined): Status {
   if (row.status === "completed") return "Completed";
   if (row.status === "na") return "N/A";
   return "In Progress";
-}
-
-function statusClass(s: Status) {
-  return {
-    "Not Started": "org-s-not-started",
-    "In Progress": "org-s-in-progress",
-    Completed: "org-s-completed",
-    "N/A": "org-s-na",
-  }[s];
 }
 
 function statusDot(s: Status) {
@@ -52,12 +42,21 @@ function statusDot(s: Status) {
   }[s];
 }
 
+function statusBadgeClass(s: Status) {
+  return {
+    "Not Started": "ot-badge--muted",
+    "In Progress": "ot-badge--warning",
+    Completed: "ot-badge--success",
+    "N/A": "ot-badge--muted",
+  }[s];
+}
+
 function fmt(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString();
 }
 
-function initials(name: string | null, email: string | null) {
+function userInitials(name: string | null, email: string | null) {
   if (name) {
     return name
       .split(/\s+/)
@@ -67,6 +66,13 @@ function initials(name: string | null, email: string | null) {
       .toUpperCase();
   }
   return (email?.[0] ?? "?").toUpperCase();
+}
+
+function calcPct(userId: string, map: (userId: string, code: string) => OrgProgressRow | undefined): number {
+  const total = STANDARDS.length;
+  if (!total) return 0;
+  const done = STANDARDS.filter((st) => statusFor(map(userId, st.code)) === "Completed").length;
+  return Math.round((done / total) * 100);
 }
 
 export function OrgTracker({
@@ -152,7 +158,7 @@ export function OrgTracker({
   const exportCSV = () => {
     const header =
       "Standard Ref,Standard Name," + users.map((u) => u.name || u.email || u.id).join(",") + ",Overall";
-    const lines = STRUCTURE.flatMap((d) => d.principles).flatMap((p) => p.standards).map((st) => {
+    const lines = STANDARDS.map((st) => {
       const cells = users.map((u) => statusFor(map(u.id, st.code))).join(",");
       return `${st.code},"${st.name}",${cells},${overall(st.code)}`;
     });
@@ -163,130 +169,107 @@ export function OrgTracker({
     a.click();
   };
 
-  const badge = (s: Status, clickable: boolean, userId: string, code: string) => (
-    <button
-      className={`org-badge ${statusClass(s)}`}
-      disabled={!clickable}
-      onClick={() => clickable && setPicker({ userId, code })}
-      title={clickable ? "Change status" : undefined}
-    >
-      <span className="org-badge-dot" style={{ background: statusDot(s) }} />
-      {s}
-    </button>
-  );
-
   const totalDone = STANDARDS.filter((st) => overall(st.code) === "Completed").length;
   const totalInProgress = STANDARDS.filter((st) => overall(st.code) === "In Progress").length;
   const totalNa = STANDARDS.filter((st) => overall(st.code) === "N/A").length;
+  const notStarted = STANDARDS.length - totalDone - totalInProgress - totalNa;
   const pct = STANDARDS.length ? Math.round((totalDone / STANDARDS.length) * 100) : 0;
 
   if (view === "dashboard") {
-    const progBars = users.map((u) => {
-      const done = STANDARDS.filter((st) => statusFor(map(u.id, st.code)) === "Completed").length;
-      const p = STANDARDS.length ? Math.round((done / STANDARDS.length) * 100) : 0;
-      return (
-        <div className="org-cp-row" key={u.id}>
-          <div className="org-cp-name">{u.name || u.email || "—"}</div>
-          <div className="org-cp-bar-wrap">
-            <div className="org-cp-bar" style={{ width: `${p}%` }} />
-          </div>
-          <div className="org-cp-pct">{p}%</div>
-        </div>
-      );
-    });
-
-    let tableRows = "";
-    STRUCTURE.forEach((domain) => {
-      const anyVisible = domain.principles.some((p) =>
-        p.standards.some((st) => filter === "All" || overall(st.code) === filter),
-      );
-      if (!anyVisible) return;
-      tableRows += `<tr class="org-domain-row"><td colspan="${2 + users.length}">${domain.domain}</td></tr>`;
-      domain.principles.forEach((principle) => {
-        const pStds = principle.standards.filter((st) => filter === "All" || overall(st.code) === filter);
-        if (!pStds.length) return;
-        tableRows += `<tr class="org-principle-row"><td colspan="${2 + users.length}">${principle.label}</td></tr>`;
-        pStds.forEach((st) => {
-          const userCells = users
-            .map((u) => `<td>${badgeHtml(statusFor(map(u.id, st.code)))}</td>`)
-            .join("");
-          tableRows += `<tr><td><span class="std-code">${st.code}</span></td><td>${st.name}</td>${userCells}<td>${badgeHtml(overall(st.code))}</td></tr>`;
-        });
-      });
-    });
-
     return (
       <div className="content">
-        <div className="org-stats">
-          <div className="org-stat">
-            <div className="org-stat-num">{STANDARDS.length}</div>
-            <div className="org-stat-label">Total Standards</div>
+        <div className="ot-summary">
+          <div className="ot-summary__header">
+            <div className="ot-summary__org">{orgName}</div>
+            <div className="ot-summary__subtitle">Compliance Overview</div>
           </div>
-          <div className="org-stat" style={{ "--accent": "#16A34A" } as CSSProperties}>
-            <div className="org-stat-num">{totalDone}</div>
-            <div className="org-stat-label">Fully Complete</div>
+          <div className="ot-summary__metrics">
+            <div className="ot-metric">
+              <div className="ot-metric__ring" style={{ "--pct": `${pct}%`, "--color": "var(--color-brand)" } as CSSProperties}>
+                <span className="ot-metric__value">{pct}%</span>
+              </div>
+              <div className="ot-metric__label">Overall</div>
+            </div>
+            <div className="ot-metric">
+              <div className="ot-metric__number" style={{ color: "#16A34A" }}>{totalDone}</div>
+              <div className="ot-metric__label">Completed</div>
+            </div>
+            <div className="ot-metric">
+              <div className="ot-metric__number" style={{ color: "#F59E0B" }}>{totalInProgress}</div>
+              <div className="ot-metric__label">In Progress</div>
+            </div>
+            <div className="ot-metric">
+              <div className="ot-metric__number" style={{ color: "#9CA3AF" }}>{notStarted}</div>
+              <div className="ot-metric__label">Not Started</div>
+            </div>
           </div>
-          <div className="org-stat" style={{ "--accent": "#F59E0B" } as CSSProperties}>
-            <div className="org-stat-num">{totalInProgress}</div>
-            <div className="org-stat-label">In Progress</div>
-          </div>
-          <div className="org-stat" style={{ "--accent": "#9CA3AF" } as CSSProperties}>
-            <div className="org-stat-num">{totalNa}</div>
-            <div className="org-stat-label">Not Applicable</div>
-          </div>
-          <div className="org-stat" style={{ "--accent": "#0F6E56" } as CSSProperties}>
-            <div className="org-stat-num">{pct}%</div>
-            <div className="org-stat-label">Overall Progress</div>
-          </div>
-        </div>
-
-        <div className="org-section">
-          <div className="org-section-title">Completion by member</div>
-          {progBars}
         </div>
 
         {error && <div className="org-error">{error}</div>}
 
-        <div className="org-table-wrap">
-          <div className="org-table-toolbar">
-            <div className="org-table-toolbar-title">
-              {orgName} — all {STANDARDS.length} standards
-            </div>
-            <div className="org-filter-group">
-              {FILTERS.map((f) => (
-                <button
-                  key={f}
-                  className={`org-filter-btn ${filter === f ? "active" : ""}`}
-                  onClick={() => setFilter(f)}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
+        <div className="ot-card">
+          <div className="ot-card__header">
+            <div className="ot-card__title">Member Progress</div>
+            <div className="ot-card__meta">{users.length} members</div>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table className="org-table">
-              <thead>
-                <tr>
-                  <th>Ref</th>
-                  <th>Standard</th>
-                  {users.map((u) => (
-                    <th key={u.id} className="org-user-head" onClick={() => setView(`user-${u.id}`)}>
-                      {u.name || u.email || "—"}
-                    </th>
-                  ))}
-                  <th>Overall</th>
-                </tr>
-              </thead>
-              <tbody dangerouslySetInnerHTML={{ __html: tableRows }} />
-            </table>
+          <div className="ot-members">
+            {users.map((u) => {
+              const p = calcPct(u.id, map);
+              return (
+                <button key={u.id} className="ot-member" onClick={() => setView(`user-${u.id}`)}>
+                  <div className="ot-member__avatar">{userInitials(u.name, u.email)}</div>
+                  <div className="ot-member__info">
+                    <div className="ot-member__name">{u.name || u.email || "—"}</div>
+                    <div className="ot-member__bar-wrap">
+                      <div
+                        className="ot-member__bar"
+                        style={{ width: `${p}%`, background: p === 100 ? "#16A34A" : p > 0 ? "#F59E0B" : "#D1D5DB" }}
+                      />
+                    </div>
+                  </div>
+                  <div className="ot-member__pct">{p}%</div>
+                  <svg className="ot-member__chevron" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="org-actions">
-          <button className="btn btn-ghost" onClick={exportCSV}>
-            ↓ Export CSV
-          </button>
+        <div className="ot-card">
+          <div className="ot-card__header">
+            <div className="ot-card__title">Standards by Domain</div>
+            <div className="ot-card__actions">
+              <div className="ot-filter-group">
+                {["All", ...STATUSES].map((f) => (
+                  <button key={f} className={`ot-filter-btn ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <button className="ot-btn" onClick={exportCSV}>
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                  <path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8m0 0l3-3m-3 3L5 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Export
+              </button>
+            </div>
+          </div>
+          <div className="ot-domains">
+            {STRUCTURE.map((domain) => (
+              <DomainSection
+                key={domain.domain}
+                domain={domain}
+                users={users}
+                map={map}
+                overall={overall}
+                filter={filter}
+                onUserClick={(userId) => setView(`user-${userId}`)}
+                onOverride={(userId, code) => setPicker({ userId, code })}
+              />
+            ))}
+          </div>
         </div>
 
         {picker && <OverridePicker saving={saving} onPick={applyOverride} onClose={() => setPicker(null)} />}
@@ -300,9 +283,7 @@ export function OrgTracker({
     return (
       <div className="content">
         <div className="org-error">Member not found.</div>
-        <button className="btn btn-ghost" onClick={() => setView("dashboard")}>
-          ← Back to dashboard
-        </button>
+        <button className="ot-btn" onClick={() => setView("dashboard")}>Back to dashboard</button>
       </div>
     );
   }
@@ -310,80 +291,52 @@ export function OrgTracker({
   const done = STANDARDS.filter((st) => statusFor(map(user.id, st.code)) === "Completed").length;
   const inP = STANDARDS.filter((st) => statusFor(map(user.id, st.code)) === "In Progress").length;
   const na = STANDARDS.filter((st) => statusFor(map(user.id, st.code)) === "N/A").length;
-  const userPct = STANDARDS.length ? Math.round((done / STANDARDS.length) * 100) : 0;
-
-  const rows = STRUCTURE.map((domain) => (
-    <tbody key={domain.domain}>
-      <tr className="org-domain-row">
-        <td colSpan={5}>{domain.domain}</td>
-      </tr>
-      {domain.principles.map((principle) => (
-        <FragmentRows
-          key={principle.label}
-          principle={principle}
-          user={user}
-          map={map}
-          badge={badge}
-        />
-      ))}
-    </tbody>
-  ));
+  const userPctVal = STANDARDS.length ? Math.round((done / STANDARDS.length) * 100) : 0;
 
   return (
     <div className="content">
-      <div className="org-ind-header">
-        <div className="org-ind-avatar">{initials(user.name, user.email)}</div>
-        <div>
-          <div className="org-ind-name">{user.name || user.email || "Member"}</div>
-          <div className="org-ind-role">
-            {user.email ?? ""}
-            {user.org_role === "admin" ? " · Org admin" : ""}
+      <div className="ot-user-header">
+        <button className="ot-back" onClick={() => setView("dashboard")}>
+          <svg viewBox="0 0 16 16" fill="none" width="16" height="16">
+            <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Back to dashboard
+        </button>
+        <div className="ot-user-card">
+          <div className="ot-user-card__avatar">{userInitials(user.name, user.email)}</div>
+          <div className="ot-user-card__info">
+            <div className="ot-user-card__name">{user.name || user.email || "Member"}</div>
+            <div className="ot-user-card__meta">
+              {user.email}
+              {user.org_role === "admin" && <span className="ot-admin-badge">Org Admin</span>}
+            </div>
           </div>
-        </div>
-      </div>
-      <div className="org-ind-stats">
-        <div className="org-ind-stat">
-          <div className="org-ind-stat-val" style={{ color: "#16A34A" }}>{done}</div>
-          <div className="org-ind-stat-lbl">Completed</div>
-        </div>
-        <div className="org-ind-stat">
-          <div className="org-ind-stat-val" style={{ color: "#F59E0B" }}>{inP}</div>
-          <div className="org-ind-stat-lbl">In Progress</div>
-        </div>
-        <div className="org-ind-stat">
-          <div className="org-ind-stat-val" style={{ color: "#9CA3AF" }}>{na}</div>
-          <div className="org-ind-stat-lbl">Not Applicable</div>
-        </div>
-        <div className="org-ind-stat">
-          <div className="org-ind-stat-val" style={{ color: "#0F6E56" }}>{userPct}%</div>
-          <div className="org-ind-stat-lbl">Complete</div>
+          <div className="ot-user-card__stats">
+            <div className="ot-user-stat"><span className="ot-user-stat__val" style={{ color: "#16A34A" }}>{done}</span><span className="ot-user-stat__lbl">Done</span></div>
+            <div className="ot-user-stat"><span className="ot-user-stat__val" style={{ color: "#F59E0B" }}>{inP}</span><span className="ot-user-stat__lbl">Active</span></div>
+            <div className="ot-user-stat"><span className="ot-user-stat__val" style={{ color: "#9CA3AF" }}>{na}</span><span className="ot-user-stat__lbl">N/A</span></div>
+            <div className="ot-user-stat"><span className="ot-user-stat__val" style={{ color: "var(--color-brand)" }}>{userPctVal}%</span><span className="ot-user-stat__lbl">Done</span></div>
+          </div>
         </div>
       </div>
 
       {error && <div className="org-error">{error}</div>}
 
-      <div className="org-table-wrap">
-        <div className="org-table-toolbar">
-          <div className="org-table-toolbar-title">
-            {(user.name || user.email || "Member") + " — all " + STANDARDS.length + " standards"}
-          </div>
-          <button className="btn btn-ghost" onClick={() => setView("dashboard")}>
-            ← Back to dashboard
-          </button>
+      <div className="ot-card">
+        <div className="ot-card__header">
+          <div className="ot-card__title">Standards Progress</div>
+          <div className="ot-card__meta">{STANDARDS.length} standards</div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table className="org-table">
-            <thead>
-              <tr>
-                <th>Ref</th>
-                <th>Standard</th>
-                <th>Status</th>
-                <th>Viewed</th>
-                <th>Completed</th>
-              </tr>
-            </thead>
-            {rows}
-          </table>
+        <div className="ot-domains">
+          {STRUCTURE.map((domain) => (
+            <UserDomainSection
+              key={domain.domain}
+              domain={domain}
+              user={user}
+              map={map}
+              onOverride={(code) => setPicker({ userId: user.id, code })}
+            />
+          ))}
         </div>
       </div>
 
@@ -392,44 +345,173 @@ export function OrgTracker({
   );
 }
 
-function FragmentRows({
-  principle,
-  user,
+function DomainSection({
+  domain,
+  users,
   map,
-  badge,
+  overall,
+  filter,
+  onUserClick,
+  onOverride,
 }: {
-  principle: { label: string; standards: { code: string; name: string }[] };
-  user: OrgUser;
+  domain: { domain: string; principles: { label: string; standards: { code: string; name: string }[] }[] };
+  users: OrgUser[];
   map: (userId: string, code: string) => OrgProgressRow | undefined;
-  badge: (s: Status, clickable: boolean, userId: string, code: string) => ReactNode;
+  overall: (code: string) => Status;
+  filter: string;
+  onUserClick: (userId: string) => void;
+  onOverride: (userId: string, code: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(true);
+
+  const allStds = domain.principles.flatMap((p) => p.standards);
+  const domainDone = allStds.filter((st) => overall(st.code) === "Completed").length;
+  const domainTotal = allStds.length;
+  const domainPct = domainTotal ? Math.round((domainDone / domainTotal) * 100) : 0;
+
+  const anyVisible = domain.principles.some((p) =>
+    p.standards.some((st) => filter === "All" || overall(st.code) === filter),
+  );
+
+  if (!anyVisible) return null;
+
   return (
-    <>
-      <tr className="org-principle-row">
-        <td colSpan={5}>{principle.label}</td>
-      </tr>
-      {principle.standards.map((st) => {
-        const row = map(user.id, st.code);
-        return (
-          <tr key={st.code}>
-            <td>
-              <span className="std-code">{st.code}</span>
-            </td>
-            <td>{st.name}</td>
-            <td>{badge(statusFor(row), true, user.id, st.code)}</td>
-            <td>{fmt(row?.viewed_at ?? null)}</td>
-            <td>{fmt(row?.completed_at ?? null)}</td>
-          </tr>
-        );
-      })}
-    </>
+    <div className="ot-domain">
+      <button className="ot-domain__header" onClick={() => setExpanded(!expanded)}>
+        <div className="ot-domain__left">
+          <svg className={`ot-domain__chevron ${expanded ? "open" : ""}`} viewBox="0 0 16 16" fill="none" width="14" height="14">
+            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="ot-domain__name">{domain.domain}</span>
+        </div>
+        <div className="ot-domain__right">
+          <span className="ot-domain__stat">{domainDone}/{domainTotal}</span>
+          <div className="ot-domain__bar-wrap">
+            <div className="ot-domain__bar" style={{ width: `${domainPct}%` }} />
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="ot-domain__body">
+          {domain.principles.map((principle) => {
+            const pStds = principle.standards.filter((st) => filter === "All" || overall(st.code) === filter);
+            if (!pStds.length) return null;
+            return (
+              <div className="ot-principle" key={principle.label}>
+                <div className="ot-principle__label">{principle.label}</div>
+                <div className="ot-std-grid">
+                  <div className="ot-std-row ot-std-row--header">
+                    <div className="ot-std-row__code">Ref</div>
+                    <div className="ot-std-row__name">Standard</div>
+                    <div className="ot-std-row__users">
+                      {users.map((u) => (
+                        <button key={u.id} className="ot-std-row__user" onClick={() => onUserClick(u.id)} title={u.name || u.email || ""}>
+                          {userInitials(u.name, u.email)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="ot-std-row__status">Status</div>
+                  </div>
+                  {pStds.map((st) => (
+                    <div className="ot-std-row" key={st.code}>
+                      <div className="ot-std-row__code">{st.code}</div>
+                      <div className="ot-std-row__name">{st.name}</div>
+                      <div className="ot-std-row__users">
+                        {users.map((u) => {
+                          const s = statusFor(map(u.id, st.code));
+                          return (
+                            <button
+                              key={u.id}
+                              className={`ot-badge ${statusBadgeClass(s)}`}
+                              onClick={() => onOverride(u.id, st.code)}
+                              title={`${u.name || "User"}: ${s}`}
+                            >
+                              <span className="ot-badge__dot" style={{ background: statusDot(s) }} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className={`ot-badge ${statusBadgeClass(overall(st.code))}`}>
+                        <span className="ot-badge__dot" style={{ background: statusDot(overall(st.code)) }} />
+                        {overall(st.code)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
-function badgeHtml(s: Status) {
-  const cls = statusClass(s);
-  const dot = statusDot(s);
-  return `<button class="org-badge ${cls}" style="cursor:default" tabindex="-1"><span class="org-badge-dot" style="background:${dot}"></span>${s}</button>`;
+function UserDomainSection({
+  domain,
+  user,
+  map,
+  onOverride,
+}: {
+  domain: { domain: string; principles: { label: string; standards: { code: string; name: string }[] }[] };
+  user: OrgUser;
+  map: (userId: string, code: string) => OrgProgressRow | undefined;
+  onOverride: (code: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  const allStds = domain.principles.flatMap((p) => p.standards);
+  const done = allStds.filter((st) => statusFor(map(user.id, st.code)) === "Completed").length;
+  const total = allStds.length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+
+  return (
+    <div className="ot-domain">
+      <button className="ot-domain__header" onClick={() => setExpanded(!expanded)}>
+        <div className="ot-domain__left">
+          <svg className={`ot-domain__chevron ${expanded ? "open" : ""}`} viewBox="0 0 16 16" fill="none" width="14" height="14">
+            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="ot-domain__name">{domain.domain}</span>
+        </div>
+        <div className="ot-domain__right">
+          <span className="ot-domain__stat">{done}/{total}</span>
+          <div className="ot-domain__bar-wrap">
+            <div className="ot-domain__bar" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="ot-domain__body">
+          {domain.principles.map((principle) => (
+            <div className="ot-principle" key={principle.label}>
+              <div className="ot-principle__label">{principle.label}</div>
+              {principle.standards.map((st) => {
+                const row = map(user.id, st.code);
+                const s = statusFor(row);
+                return (
+                  <div className="ot-user-std" key={st.code}>
+                    <div className="ot-user-std__code">{st.code}</div>
+                    <div className="ot-user-std__name">{st.name}</div>
+                    <button className={`ot-badge ${statusBadgeClass(s)}`} onClick={() => onOverride(st.code)} title="Click to change">
+                      <span className="ot-badge__dot" style={{ background: statusDot(s) }} />
+                      {s}
+                    </button>
+                    <div className="ot-user-std__dates">
+                      {row?.viewed_at && <span>Viewed {fmt(row.viewed_at)}</span>}
+                      {row?.completed_at && <span>Completed {fmt(row.completed_at)}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function OverridePicker({
@@ -442,11 +524,12 @@ function OverridePicker({
   onClose: () => void;
 }) {
   return (
-    <div className="org-picker-overlay" onClick={onClose}>
-      <div className="org-picker-menu" onClick={(e) => e.stopPropagation()}>
+    <div className="ot-picker-overlay" onClick={onClose}>
+      <div className="ot-picker" onClick={(e) => e.stopPropagation()}>
+        <div className="ot-picker__title">Set Status</div>
         {STATUSES.map((s) => (
-          <button key={s} className="org-picker-option" disabled={saving} onClick={() => onPick(s)}>
-            <span className="org-picker-dot" style={{ background: statusDot(s) }} />
+          <button key={s} className="ot-picker__option" disabled={saving} onClick={() => onPick(s)}>
+            <span className="ot-picker__dot" style={{ background: statusDot(s) }} />
             {s}
           </button>
         ))}
