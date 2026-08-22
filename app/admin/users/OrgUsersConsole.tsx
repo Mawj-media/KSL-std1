@@ -107,6 +107,11 @@ export function OrgUsersConsole({
   const [renameName, setRenameName] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
 
+  const [memberPage, setMemberPage] = useState(1);
+  const [invitationPage, setInvitationPage] = useState(1);
+  const MEMBER_PAGE_SIZE = 25;
+  const INVITATION_PAGE_SIZE = 100;
+
   const org = orgs.find((o) => o.id === selectedOrgId) ?? orgs[0];
   const totalStandards = standards.length;
 
@@ -131,6 +136,21 @@ export function OrgUsersConsole({
     }
     return list;
   }, [org, search, roleFilter, statusFilter, standards]);
+
+  const pagedMembers = useMemo(() => {
+    const start = (memberPage - 1) * MEMBER_PAGE_SIZE;
+    return filteredMembers.slice(start, start + MEMBER_PAGE_SIZE);
+  }, [filteredMembers, memberPage]);
+
+  const memberTotalPages = Math.max(1, Math.ceil(filteredMembers.length / MEMBER_PAGE_SIZE));
+
+  const pagedInvitations = useMemo(() => {
+    if (!org) return [];
+    const start = (invitationPage - 1) * INVITATION_PAGE_SIZE;
+    return org.invitations.slice(start, start + INVITATION_PAGE_SIZE);
+  }, [org, invitationPage]);
+
+  const invitationTotalPages = Math.max(1, Math.ceil((org?.invitations?.length ?? 0) / INVITATION_PAGE_SIZE));
 
   const allSelected = filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.has(m.id));
 
@@ -412,6 +432,38 @@ export function OrgUsersConsole({
     setEditTarget(m);
   }
 
+  function exportMembersCSV() {
+    if (!org) return;
+    const headers = ["Name", "Email", "Role", "Completion %", "Access Grants"];
+    const rows = filteredMembers.map((m) => {
+      const pct = userPct(m, standards);
+      const granted = standards.filter((c) => grantMap.has(`${m.id}:${c}`)).length;
+      return [m.name ?? "", m.email ?? "", m.orgRole, `${pct}`, `${granted}/${totalStandards}`];
+    });
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${org.name.replace(/[^a-z0-9]/gi, "_")}_members.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportActivityCSV() {
+    if (!org) return;
+    const headers = ["Email", "Role", "Status", "Invited"];
+    const rows = org.invitations.map((inv) => [inv.email_address, inv.role, inv.status, inv.created_at]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${org.name.replace(/[^a-z0-9]/gi, "_")}_invitations.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (orgs.length === 0) {
     return (
       <div>
@@ -487,7 +539,7 @@ export function OrgUsersConsole({
               role="tab"
               aria-selected={o.id === org.id}
               className={`org-selector-btn ${o.id === org.id ? "active" : ""}`}
-              onClick={() => { setSelectedOrgId(o.id); setExpanded(null); setSelectedIds(new Set()); setSearch(""); setActiveTab("members"); }}
+              onClick={() => { setSelectedOrgId(o.id); setExpanded(null); setSelectedIds(new Set()); setSearch(""); setActiveTab("members"); setMemberPage(1); setInvitationPage(1); }}
             >
               {o.name}
               <span className="org-selector-count">{o.memberCount}</span>
@@ -570,14 +622,14 @@ export function OrgUsersConsole({
           <div className="search-filter-bar">
         <div className="search-filter-bar__search">
           <svg viewBox="0 0 16 16" fill="none"><path d="M11.5 7a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM10.3 10.8l3.4 3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-          <input placeholder="Search members..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input placeholder="Search members..." value={search} onChange={(e) => { setSearch(e.target.value); setMemberPage(1); }} />
         </div>
-        <select className="search-filter-bar__select" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}>
+        <select className="search-filter-bar__select" value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value as typeof roleFilter); setMemberPage(1); }}>
           <option value="all">All roles</option>
           <option value="admin">Org admins</option>
           <option value="member">Members</option>
         </select>
-        <select className="search-filter-bar__select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
+        <select className="search-filter-bar__select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as typeof statusFilter); setMemberPage(1); }}>
           <option value="all">All progress</option>
           <option value="completed">Completed</option>
           <option value="in-progress">In progress</option>
@@ -607,8 +659,14 @@ export function OrgUsersConsole({
           </div>
         </div>
       ) : (
+        <>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <button className="btn-secondary" onClick={exportMembersCSV} style={{ fontSize: 12, padding: "4px 12px" }}>
+            Export CSV
+          </button>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: density === "compact" ? 4 : 8 }}>
-          {filteredMembers.map((u) => {
+          {pagedMembers.map((u) => {
             const pct = userPct(u, standards);
             const granted = standards.filter((c) => grantMap.has(`${u.id}:${c}`)).length;
             const open = expanded === u.id;
@@ -712,6 +770,28 @@ export function OrgUsersConsole({
             );
           })}
         </div>
+        {memberTotalPages > 1 && (
+          <div className="activity-log__pagination">
+            <button
+              onClick={() => setMemberPage((p) => Math.max(1, p - 1))}
+              disabled={memberPage <= 1}
+              className="activity-log__page-btn"
+            >
+              Previous
+            </button>
+            <span className="activity-log__page-info">
+              Page {memberPage} of {memberTotalPages} ({filteredMembers.length} members)
+            </span>
+            <button
+              onClick={() => setMemberPage((p) => Math.min(memberTotalPages, p + 1))}
+              disabled={memberPage >= memberTotalPages}
+              className="activity-log__page-btn"
+            >
+              Next
+            </button>
+          </div>
+        )}
+        </>
         )}
         </>
       )}
@@ -750,6 +830,12 @@ export function OrgUsersConsole({
               <div className="org-section-title">No pending invitations for this organization.</div>
             </div>
           ) : (
+            <>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <button className="btn-secondary" onClick={exportActivityCSV} style={{ fontSize: 12, padding: "4px 12px" }}>
+                Export CSV
+              </button>
+            </div>
             <div className="invitations-list">
               <div className="invitations-header">
                 <div className="invitations-col invitations-col-email">Email</div>
@@ -758,7 +844,7 @@ export function OrgUsersConsole({
                 <div className="invitations-col invitations-col-date">Invited</div>
                 <div className="invitations-col invitations-col-actions">Actions</div>
               </div>
-              {org!.invitations.map((inv) => (
+              {pagedInvitations.map((inv) => (
                 <div key={inv.id} className="invitations-row">
                   <div className="invitations-col invitations-col-email">{inv.email_address}</div>
                   <div className="invitations-col invitations-col-role">
@@ -798,6 +884,28 @@ export function OrgUsersConsole({
                 </div>
               ))}
             </div>
+            {invitationTotalPages > 1 && (
+              <div className="activity-log__pagination">
+                <button
+                  onClick={() => setInvitationPage((p) => Math.max(1, p - 1))}
+                  disabled={invitationPage <= 1}
+                  className="activity-log__page-btn"
+                >
+                  Previous
+                </button>
+                <span className="activity-log__page-info">
+                  Page {invitationPage} of {invitationTotalPages} ({org?.invitations?.length ?? 0} invitations)
+                </span>
+                <button
+                  onClick={() => setInvitationPage((p) => Math.min(invitationTotalPages, p + 1))}
+                  disabled={invitationPage >= invitationTotalPages}
+                  className="activity-log__page-btn"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+            </>
           )}
         </>
       )}

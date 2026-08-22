@@ -123,6 +123,25 @@ export function ActivityLog({
 
   const uniqueEventTypes = [...new Set(events.map((e) => e.event_type))].sort();
 
+  function exportCSV() {
+    const headers = ["Event", "User ID", "Standard", "Details", "Date"];
+    const rows = events.map((e) => [
+      EVENT_LABELS[e.event_type] ?? e.event_type,
+      e.user_id,
+      e.standard_code ?? "",
+      formatMetadata(e.metadata),
+      formatDate(e.created_at),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `activity_log.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="activity-log">
       <div className="activity-log__toolbar">
@@ -145,6 +164,11 @@ export function ActivityLog({
         >
           {loading ? "Loading..." : "Refresh"}
         </button>
+        {events.length > 0 && (
+          <button onClick={exportCSV} className="activity-log__refresh">
+            Export CSV
+          </button>
+        )}
       </div>
 
       {error && <div className="activity-log__error">{error}</div>}

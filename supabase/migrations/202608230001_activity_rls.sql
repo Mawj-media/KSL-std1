@@ -1,5 +1,6 @@
 -- Add organization_id column to activity_events for RLS-based org filtering
-ALTER TABLE activity_events ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);
+-- Uses TEXT type because organizations.id stores Clerk org IDs as text (org_...)
+ALTER TABLE activity_events ADD COLUMN IF NOT EXISTS organization_id TEXT;
 
 -- Backfill organization_id from organization_members
 UPDATE activity_events ae
