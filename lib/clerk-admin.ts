@@ -90,3 +90,81 @@ export async function listUserOrganizationMemberships(userId: string): Promise<A
 export async function deleteOrganizationMembership(orgId: string, userId: string): Promise<{ id: string; deleted: boolean }> {
   return bapi(`/organizations/${orgId}/memberships/${userId}`, { method: "DELETE" });
 }
+
+export async function updateUser(
+  userId: string,
+  data: { first_name?: string; last_name?: string; email_address?: string },
+): Promise<{ id: string }> {
+  return bapi(`/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateMembershipRole(
+  orgId: string,
+  userId: string,
+  role: "org:admin" | "org:member",
+): Promise<{ id: string; role: string }> {
+  return bapi(`/organizations/${orgId}/memberships/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function createImpersonationToken(
+  userId: string,
+  expiresInSeconds: number,
+): Promise<{ token: string }> {
+  return bapi(`/users/${userId}/impersonation_tokens`, {
+    method: "POST",
+    body: JSON.stringify({
+      expires_in_seconds: expiresInSeconds,
+      actor: "admin",
+    }),
+  });
+}
+
+export async function resendOrganizationInvitation(
+  orgId: string,
+  invitationId: string,
+): Promise<{ id: string }> {
+  return bapi(`/organizations/${orgId}/invitations/${invitationId}/resend`, {
+    method: "POST",
+  });
+}
+
+export async function listOrganizationInvitations(
+  orgId: string,
+): Promise<Array<{
+  id: string;
+  email_address: string;
+  role: string;
+  status: string;
+  created_at: string;
+}>> {
+  const res = await bapi<{ data: Array<{
+    id: string;
+    email_address: string;
+    role: string;
+    status: string;
+    created_at: string;
+  }> }>(
+    `/organizations/${orgId}/invitations`,
+  );
+  return res.data ?? [];
+}
+
+export async function deleteOrganization(orgId: string): Promise<{ id: string; deleted: boolean }> {
+  return bapi(`/organizations/${orgId}`, { method: "DELETE" });
+}
+
+export async function updateOrganization(
+  orgId: string,
+  data: { name?: string },
+): Promise<{ id: string; name: string }> {
+  return bapi(`/organizations/${orgId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
