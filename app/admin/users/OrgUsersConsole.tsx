@@ -300,6 +300,9 @@ export function OrgUsersConsole({
       });
       if (res.ok) {
         router.refresh();
+      } else {
+        const err = await res.json();
+        alert(err.error ?? "Failed to cancel invitation");
       }
     } finally {
       setCancelingId(null);
@@ -681,7 +684,7 @@ export function OrgUsersConsole({
                   </div>
                   <div className="invitations-col invitations-col-status">
                     <Badge variant={inv.status === "pending" ? "pending" : inv.status === "accepted" ? "completed" : "expired"}>
-                      {inv.status}
+                      {inv.status === "revoked" ? "cancelled" : inv.status}
                     </Badge>
                   </div>
                   <div className="invitations-col invitations-col-date">{formatDate(inv.created_at)}</div>

@@ -65,7 +65,8 @@ export default async function AdminUsersPage() {
       const rows = memberRows.filter((m) => m.organization_id === o.id);
       let invitations: InvitationRow[] = [];
       try {
-        invitations = await listOrganizationInvitations(o.id);
+        invitations = (await listOrganizationInvitations(o.id))
+          .filter((inv) => inv.status !== "revoked");
       } catch {
         // Ignore invitation fetch errors
       }
