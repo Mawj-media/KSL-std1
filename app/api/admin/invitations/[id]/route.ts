@@ -63,8 +63,8 @@ export async function DELETE(
   }
 
   try {
-    await bapi(`/organizations/${orgId}/invitations/${invitationId}`, {
-      method: "DELETE",
+    await bapi(`/organizations/${orgId}/invitations/${invitationId}/revoke`, {
+      method: "POST",
     });
     return Response.json({ ok: true });
   } catch (error) {
