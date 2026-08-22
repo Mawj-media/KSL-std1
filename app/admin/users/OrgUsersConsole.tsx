@@ -83,6 +83,7 @@ export function OrgUsersConsole({
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editOrgRole, setEditOrgRole] = useState<"org:admin" | "org:member">("org:member");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [newOrgOpen, setNewOrgOpen] = useState(false);
 
@@ -238,30 +239,33 @@ export function OrgUsersConsole({
     }
   }
 
-  async function changeRole(userId: string, orgRole: "org:admin" | "org:member") {
+  async function saveUser() {
+    if (!editTarget) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/role`, {
+      // Save name
+      await fetch(`/api/admin/users/${editTarget.id}/name`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgRole, orgId: org?.id }),
+        body: JSON.stringify({ firstName: editFirstName.trim(), lastName: editLastName.trim() }),
       });
-      if (res.ok) { setEditTarget(null); router.refresh(); }
-    } finally {
-      setBusy(false);
-    }
-  }
 
-  async function changeEmail() {
-    if (!editTarget || !editEmail.trim()) return;
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/admin/users/${editTarget.id}/email`, {
+      // Save role
+      await fetch(`/api/admin/users/${editTarget.id}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgRole: editOrgRole, orgId: org?.id }),
+      });
+
+      // Save email
+      await fetch(`/api/admin/users/${editTarget.id}/email`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: editEmail.trim() }),
       });
-      if (res.ok) { setEditTarget(null); router.refresh(); }
+
+      setEditTarget(null);
+      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -369,6 +373,7 @@ export function OrgUsersConsole({
     setEditFirstName(parts[0] ?? "");
     setEditLastName(parts.slice(1).join(" "));
     setEditEmail(m.email ?? "");
+    setEditOrgRole(m.orgRole === "admin" ? "org:admin" : "org:member");
     setEditTarget(m);
   }
 
@@ -753,7 +758,7 @@ export function OrgUsersConsole({
             </div>
             <div className="modal__field">
               <label className="modal__label">Organization role</label>
-              <select className="modal__select" value={editTarget.orgRole === "admin" ? "org:admin" : "org:member"} onChange={(e) => changeRole(editTarget.id, e.target.value as "org:admin" | "org:member")} disabled={busy}>
+              <select className="modal__select" value={editOrgRole} onChange={(e) => setEditOrgRole(e.target.value as "org:admin" | "org:member")} disabled={busy}>
                 <option value="org:member">Member</option>
                 <option value="org:admin">Org admin</option>
               </select>
@@ -764,7 +769,7 @@ export function OrgUsersConsole({
             </div>
             <div className="modal__footer" style={{ padding: 0 }}>
               <button className="btn-secondary" onClick={() => setEditTarget(null)} disabled={busy}>Cancel</button>
-              <button className="btn-primary" onClick={changeEmail} disabled={busy || !editEmail.trim() || editEmail === editTarget.email}>Save email</button>
+              <button className="btn-primary" onClick={saveUser} disabled={busy || !editEmail.trim()}>Save</button>
             </div>
           </>
         )}
