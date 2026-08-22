@@ -15,14 +15,25 @@ type Member = {
   progress: Map<string, string>;
 };
 
+type Invitation = {
+  id: string;
+  email_address: string;
+  role: string;
+  status: string;
+  created_at: string;
+};
+
 type Org = {
   id: string;
   name: string;
   memberCount: number;
   members: Member[];
+  invitations: Invitation[];
 };
 
 type Status = "Completed" | "In Progress" | "Not Started" | "N/A";
+
+type Tab = "members" | "invitations";
 
 function statusFor(row: string | undefined): Status {
   if (!row) return "Not Started";
@@ -36,6 +47,10 @@ function userPct(u: Member, standards: string[]): number {
   if (!total) return 0;
   const done = standards.filter((c) => statusFor(u.progress.get(c)) === "Completed").length;
   return Math.round((done / total) * 100);
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
 type Density = "default" | "compact";
@@ -55,6 +70,7 @@ export function OrgUsersConsole({
   const [selectedOrgId, setSelectedOrgId] = useState(orgs[0]?.id ?? null);
   const [grantMap, setGrantMap] = useState(grants);
   const [busy, setBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("members");
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "member">("all");
@@ -78,6 +94,8 @@ export function OrgUsersConsole({
   const [newOrgError, setNewOrgError] = useState<string | null>(null);
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
 
   const org = orgs.find((o) => o.id === selectedOrgId) ?? orgs[0];
   const totalStandards = standards.length;
@@ -229,6 +247,46 @@ export function OrgUsersConsole({
     }
   }
 
+  async function resendInvitation(invitationId: string) {
+    if (!org) return;
+    setBusy(true);
+    setResendingId(invitationId);
+    try {
+      const res = await fetch(`/api/admin/invitations/${invitationId}/resend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: org.id }),
+      });
+      if (res.ok) {
+        router.refresh();
+      }
+    } finally {
+      setResendingId(null);
+      setBusy(false);
+    }
+  }
+
+  async function cancelInvitation(invitationId: string) {
+    if (!org) return;
+    const confirmed = window.confirm("Cancel this invitation? The user will not be able to accept it.");
+    if (!confirmed) return;
+    setBusy(true);
+    setCancelingId(invitationId);
+    try {
+      const res = await fetch(`/api/admin/invitations/${invitationId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: org.id }),
+      });
+      if (res.ok) {
+        router.refresh();
+      }
+    } finally {
+      setCancelingId(null);
+      setBusy(false);
+    }
+  }
+
   async function bulkDelete() {
     const confirmed = window.confirm(`Delete ${selectedIds.size} user(s) permanently?`);
     if (!confirmed) return;
@@ -314,7 +372,7 @@ export function OrgUsersConsole({
             role="tab"
             aria-selected={o.id === org.id}
             className={`org-selector-btn ${o.id === org.id ? "active" : ""}`}
-            onClick={() => { setSelectedOrgId(o.id); setExpanded(null); setSelectedIds(new Set()); setSearch(""); }}
+            onClick={() => { setSelectedOrgId(o.id); setExpanded(null); setSelectedIds(new Set()); setSearch(""); setActiveTab("members"); }}
           >
             {o.name}
             <span className="org-selector-count">{o.memberCount}</span>
@@ -322,22 +380,44 @@ export function OrgUsersConsole({
         ))}
       </div>
 
-      <div className="org-stats">
-        <div className="org-stat">
-          <div className="org-stat-num">{filteredMembers.length}</div>
-          <div className="org-stat-label">Members</div>
-        </div>
-        <div className="org-stat">
-          <div className="org-stat-num">{avgPct}%</div>
-          <div className="org-stat-label">Avg Completion</div>
-        </div>
-        <div className="org-stat">
-          <div className="org-stat-num">{fullyCompliant}</div>
-          <div className="org-stat-label">Fully Compliant</div>
-        </div>
+      {/* Tab navigation: Members / Invitations */}
+      <div className="org-tab-nav" role="tablist" aria-label="View">
+        <button
+          role="tab"
+          aria-selected={activeTab === "members"}
+          className={`org-tab-btn ${activeTab === "members" ? "active" : ""}`}
+          onClick={() => setActiveTab("members")}
+        >
+          Members <span className="org-tab-count">{filteredMembers.length}</span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === "invitations"}
+          className={`org-tab-btn ${activeTab === "invitations" ? "active" : ""}`}
+          onClick={() => setActiveTab("invitations")}
+        >
+          Invitations <span className="org-tab-count">{org?.invitations?.length ?? 0}</span>
+        </button>
       </div>
 
-      <div className="search-filter-bar">
+      {activeTab === "members" && (
+        <>
+          <div className="org-stats">
+            <div className="org-stat">
+              <div className="org-stat-num">{filteredMembers.length}</div>
+              <div className="org-stat-label">Members</div>
+            </div>
+            <div className="org-stat">
+              <div className="org-stat-num">{avgPct}%</div>
+              <div className="org-stat-label">Avg Completion</div>
+            </div>
+            <div className="org-stat">
+              <div className="org-stat-num">{fullyCompliant}</div>
+              <div className="org-stat-label">Fully Compliant</div>
+            </div>
+          </div>
+
+          <div className="search-filter-bar">
         <div className="search-filter-bar__search">
           <svg viewBox="0 0 16 16" fill="none"><path d="M11.5 7a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM10.3 10.8l3.4 3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           <input placeholder="Search members..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -480,6 +560,8 @@ export function OrgUsersConsole({
             );
           })}
         </div>
+        )}
+        </>
       )}
 
       {/* New Org Modal */}
@@ -494,6 +576,66 @@ export function OrgUsersConsole({
           <button className="btn-primary" onClick={createOrg} disabled={busy || !newOrgName.trim()}>Create</button>
         </div>
       </Modal>
+
+      {/* Invitations Tab Content */}
+      {activeTab === "invitations" && (
+        <>
+          {org?.invitations?.length === 0 ? (
+            <div className="org-section">
+              <div className="org-section-title">No pending invitations for this organization.</div>
+            </div>
+          ) : (
+            <div className="invitations-list">
+              <div className="invitations-header">
+                <div className="invitations-col invitations-col-email">Email</div>
+                <div className="invitations-col invitations-col-role">Role</div>
+                <div className="invitations-col invitations-col-status">Status</div>
+                <div className="invitations-col invitations-col-date">Invited</div>
+                <div className="invitations-col invitations-col-actions">Actions</div>
+              </div>
+              {org!.invitations.map((inv) => (
+                <div key={inv.id} className="invitations-row">
+                  <div className="invitations-col invitations-col-email">{inv.email_address}</div>
+                  <div className="invitations-col invitations-col-role">
+                    <Badge variant={inv.role === "org:admin" ? "admin" : "member"}>
+                      {inv.role === "org:admin" ? "Org Admin" : "Member"}
+                    </Badge>
+                  </div>
+                  <div className="invitations-col invitations-col-status">
+                    <Badge variant={inv.status === "pending" ? "pending" : inv.status === "accepted" ? "completed" : "expired"}>
+                      {inv.status}
+                    </Badge>
+                  </div>
+                  <div className="invitations-col invitations-col-date">{formatDate(inv.created_at)}</div>
+                  <div className="invitations-col invitations-col-actions">
+                    {inv.status === "pending" && (
+                      <>
+                        <button
+                          className="member-panel__btn"
+                          onClick={() => resendInvitation(inv.id)}
+                          disabled={busy || resendingId === inv.id}
+                        >
+                          {resendingId === inv.id ? "Resending..." : "Resend"}
+                        </button>
+                        <button
+                          className="member-panel__btn member-panel__btn--danger"
+                          onClick={() => cancelInvitation(inv.id)}
+                          disabled={busy || cancelingId === inv.id}
+                        >
+                          {cancelingId === inv.id ? "Canceling..." : "Cancel"}
+                        </button>
+                      </>
+                    )}
+                    {inv.status !== "pending" && (
+                      <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>No actions</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Invite Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title={`Invite member to ${org?.name ?? ""}`}>

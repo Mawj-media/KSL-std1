@@ -13,6 +13,14 @@ type MemberRow = {
 
 type ProgressRow = { user_id: string; standard_code: string; status: string };
 
+type InvitationRow = {
+  id: string;
+  email_address: string;
+  role: string;
+  status: string;
+  created_at: string;
+};
+
 export default async function AdminUsersPage() {
   const { userId: currentUserId } = await auth();
 
@@ -50,25 +58,43 @@ export default async function AdminUsersPage() {
     progressByUser.set(p.user_id, userMap);
   }
 
-  const orgs = (organizations ?? []).map((o) => {
-    const rows = memberRows.filter((m) => m.organization_id === o.id);
-    return {
-      id: o.id,
-      name: o.name,
-      memberCount: rows.length,
-      members: rows.map((m) => {
-        const user = Array.isArray(m.users) ? m.users[0] : m.users;
-        return {
-          id: m.user_id,
-          name: user?.name ?? null,
-          email: user?.email ?? null,
-          role: user?.role ?? "client",
-          orgRole: m.org_role,
-          progress: progressByUser.get(m.user_id) ?? new Map<string, string>(),
-        };
-      }),
-    };
-  });
+  // Fetch invitations for each org from Clerk via API route
+  const orgsWithInvitations = await Promise.all(
+    (organizations ?? []).map(async (o) => {
+      const rows = memberRows.filter((m) => m.organization_id === o.id);
+      // Fetch invitations from Clerk
+      let invitations: InvitationRow[] = [];
+      try {
+        const res = await fetch(new URL(`/api/admin/invitations?orgId=${o.id}`, process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"), {
+          headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          invitations = data.invitations ?? [];
+        }
+      } catch {
+        // Ignore invitation fetch errors
+      }
+
+      return {
+        id: o.id,
+        name: o.name,
+        memberCount: rows.length,
+        invitations,
+        members: rows.map((m) => {
+          const user = Array.isArray(m.users) ? m.users[0] : m.users;
+          return {
+            id: m.user_id,
+            name: user?.name ?? null,
+            email: user?.email ?? null,
+            role: user?.role ?? "client",
+            orgRole: m.org_role,
+            progress: progressByUser.get(m.user_id) ?? new Map<string, string>(),
+          };
+        }),
+      };
+    })
+  );
 
   return (
     <div className="content">
@@ -77,7 +103,7 @@ export default async function AdminUsersPage() {
         Switch organizations to review member completion and grant or revoke per-standard access.
       </div>
       <OrgUsersConsole
-        orgs={orgs}
+        orgs={orgsWithInvitations}
         grants={new Map((grants ?? []).map((g) => [`${g.user_id}:${g.standard_code}`, true]))}
         standards={publishedCodes}
         currentUserId={currentUserId ?? null}

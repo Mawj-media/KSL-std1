@@ -1,10 +1,39 @@
 import { requireAdmin } from "../../../../lib/auth";
-import { ClerkApiError, createOrganizationInvitation, findUserByEmail, listUserOrganizationMemberships } from "../../../../lib/clerk-admin";
+import { ClerkApiError, createOrganizationInvitation, findUserByEmail, listUserOrganizationMemberships, listOrganizationInvitations } from "../../../../lib/clerk-admin";
 import { getSupabase } from "../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function GET(req: Request) {
+  try {
+    await requireAdmin();
+  } catch {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const url = new URL(req.url);
+  const orgId = url.searchParams.get("orgId");
+
+  if (!orgId) {
+    return Response.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  try {
+    const invitations = await listOrganizationInvitations(orgId);
+    return Response.json({ ok: true, invitations });
+  } catch (error) {
+    if (error instanceof ClerkApiError) {
+      return Response.json(
+        { error: error.message },
+        { status: error.status >= 500 ? 502 : 400 },
+      );
+    }
+    console.error("Invitation list failed:", error);
+    return Response.json({ error: "Internal error" }, { status: 500 });
+  }
+}
 
 export async function POST(req: Request) {
   try {
