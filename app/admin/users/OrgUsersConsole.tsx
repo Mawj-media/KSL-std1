@@ -97,6 +97,10 @@ export function OrgUsersConsole({
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
 
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameName, setRenameName] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+
   const org = orgs.find((o) => o.id === selectedOrgId) ?? orgs[0];
   const totalStandards = standards.length;
 
@@ -287,6 +291,44 @@ export function OrgUsersConsole({
     }
   }
 
+  async function renameOrg() {
+    if (!org) return;
+    setBusy(true);
+    setRenameError(null);
+    try {
+      const res = await fetch(`/api/admin/organizations/${org.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renameName.trim() }),
+      });
+      if (res.ok) {
+        setRenameOpen(false);
+        router.refresh();
+      } else {
+        const data = await res.json();
+        setRenameError(data.error ?? "Failed to rename");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteOrg() {
+    if (!org) return;
+    const confirmed = window.confirm(`Delete "${org.name}" and all its members? This cannot be undone.`);
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/organizations/${org.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setSelectedOrgId(orgs[1]?.id ?? "");
+        router.refresh();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function bulkDelete() {
     const confirmed = window.confirm(`Delete ${selectedIds.size} user(s) permanently?`);
     if (!confirmed) return;
@@ -354,6 +396,12 @@ export function OrgUsersConsole({
           </button>
           <button className="btn-secondary" onClick={() => setInviteOpen(true)}>
             + Invite member
+          </button>
+          <button className="btn-secondary" onClick={() => { setRenameName(org?.name ?? ""); setRenameOpen(true); }}>
+            Rename org
+          </button>
+          <button className="btn-secondary btn-danger" onClick={deleteOrg} disabled={busy}>
+            Delete org
           </button>
         </div>
         <div className="org-toolbar__right">
@@ -563,6 +611,19 @@ export function OrgUsersConsole({
         )}
         </>
       )}
+
+      {/* Rename Org Modal */}
+      <Modal open={renameOpen} onClose={() => setRenameOpen(false)} title="Rename organization">
+        {renameError && <div className="modal__error">{renameError}</div>}
+        <div className="modal__field">
+          <label className="modal__label">Organization name</label>
+          <input className="modal__input" type="text" value={renameName} onChange={(e) => setRenameName(e.target.value)} disabled={busy} />
+        </div>
+        <div className="modal__footer" style={{ padding: 0 }}>
+          <button className="btn-secondary" onClick={() => setRenameOpen(false)} disabled={busy}>Cancel</button>
+          <button className="btn-primary" onClick={renameOrg} disabled={busy || !renameName.trim()}>Save</button>
+        </div>
+      </Modal>
 
       {/* New Org Modal */}
       <Modal open={newOrgOpen} onClose={() => setNewOrgOpen(false)} title="New organization">
