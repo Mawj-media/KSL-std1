@@ -8,8 +8,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
+  let adminId: string;
   try {
-    await requireAdmin();
+    adminId = await requireAdmin();
   } catch {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -59,6 +60,13 @@ export async function PATCH(
       .update({ org_role: orgRole === "org:admin" ? "admin" : "member" })
       .eq("user_id", userId)
       .eq("organization_id", targetOrgId);
+
+    await getSupabase().from("activity_events").insert({
+      user_id: adminId,
+      organization_id: targetOrgId,
+      event_type: "role_changed",
+      metadata: { target_user_id: userId, new_role: orgRole },
+    });
 
     return Response.json({ ok: true, role: result.role });
   } catch (error) {

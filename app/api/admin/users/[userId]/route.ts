@@ -38,7 +38,22 @@ export async function DELETE(
   }
 
   try {
+    // Find user's org before deletion for activity logging
+    const { data: membership } = await getSupabase()
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     const result = await deleteUser(userId);
+
+    await getSupabase().from("activity_events").insert({
+      user_id: ownerId,
+      organization_id: membership?.organization_id ?? null,
+      event_type: "user_deleted",
+      metadata: { target_user_id: userId },
+    });
+
     return Response.json({ ok: true, deleted: result.deleted });
   } catch (error) {
     if (error instanceof ClerkApiError) {

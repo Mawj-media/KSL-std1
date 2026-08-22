@@ -66,9 +66,10 @@ export async function POST(req: Request) {
 
     await getSupabase().from("activity_events").insert({
       user_id: adminId,
+      organization_id: orgId,
       event_type: action === "grant" ? "bulk_standard_granted" : "bulk_standard_revoked",
       standard_code: standardCode,
-      metadata: { org_id: orgId, affected_users: userIds.length },
+      metadata: { affected_users: userIds.length },
     });
 
     return Response.json({ ok: true, affected: userIds.length });

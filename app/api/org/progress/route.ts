@@ -149,6 +149,7 @@ export async function PATCH(req: Request) {
 
     await getSupabase().from("activity_events").insert({
       user_id: adminId,
+      organization_id: orgId,
       event_type: "org_status_override",
       standard_code: standardCode,
       metadata: { target_user_id: userId, status },

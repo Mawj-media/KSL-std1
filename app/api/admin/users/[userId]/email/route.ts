@@ -1,11 +1,13 @@
 import { requireOwnerAdmin } from "../../../../../../lib/auth";
 import { ClerkApiError, updateUser } from "../../../../../../lib/clerk-admin";
+import { getSupabase } from "../../../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ userId: string }> }) {
+  let ownerId: string;
   try {
-    await requireOwnerAdmin();
+    ownerId = await requireOwnerAdmin();
   } catch {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -26,7 +28,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
   }
 
   try {
+    // Find user's org before update for activity logging
+    const { data: membership } = await getSupabase()
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     await updateUser(userId, { email_address: email.trim() });
+
+    await getSupabase().from("activity_events").insert({
+      user_id: ownerId,
+      organization_id: membership?.organization_id ?? null,
+      event_type: "user_email_updated",
+      metadata: { target_user_id: userId, new_email: email.trim() },
+    });
+
     return Response.json({ ok: true });
   } catch (error) {
     if (error instanceof ClerkApiError) {

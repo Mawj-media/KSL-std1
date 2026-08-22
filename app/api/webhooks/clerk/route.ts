@@ -76,6 +76,7 @@ async function enforceSingleOrgPolicy(membership: ClerkMembership) {
     await deleteOrganizationMembership(newest.organization_id, userId);
     await getSupabase().from("activity_events").insert({
       user_id: userId,
+      organization_id: newest.organization_id,
       event_type: "membership_removed",
       metadata: {
         removed_org_id: newest.organization_id,

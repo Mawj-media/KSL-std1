@@ -26,6 +26,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/users" className="nav-item">
             <span className="nav-dot" /> Organizations & Users
           </Link>
+          <Link href="/admin/activity" className="nav-item">
+            <span className="nav-dot" /> Activity Log
+          </Link>
           <div className="nav-label">Program</div>
         </nav>
         <div className="sidebar-foot">

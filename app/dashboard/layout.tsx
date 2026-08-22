@@ -38,6 +38,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {orgContext?.orgRole === "admin" && (
             <Link href="/dashboard/org-tracker" className="nav-item"><span className="nav-dot" /> Team Compliance Tracker</Link>
           )}
+          {orgContext?.orgRole === "admin" && (
+            <Link href="/dashboard/activity" className="nav-item"><span className="nav-dot" /> Activity Log</Link>
+          )}
         </nav>
         <div className="sidebar-foot">
           © 2025 KSL - GRC Consultancy<br />
