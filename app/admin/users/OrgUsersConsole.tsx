@@ -55,16 +55,20 @@ function formatDate(iso: string): string {
 
 type Density = "default" | "compact";
 
+type ViewAs = "platform-admin" | "org-admin";
+
 export function OrgUsersConsole({
   orgs,
   grants,
   standards,
   currentUserId,
+  viewAs = "platform-admin",
 }: {
   orgs: Org[];
   grants: Map<string, boolean>;
   standards: string[];
   currentUserId: string | null;
+  viewAs?: ViewAs;
 }) {
   const router = useRouter();
   const [selectedOrgId, setSelectedOrgId] = useState(orgs[0]?.id ?? null);
@@ -155,7 +159,8 @@ export function OrgUsersConsole({
   async function toggleGrant(userId: string, code: string, grant: boolean) {
     setBusy(true);
     try {
-      const res = await fetch("/api/admin/grants", {
+      const endpoint = viewAs === "org-admin" ? "/api/org/grants" : "/api/admin/grants";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, standardCode: code, action: grant ? "grant" : "revoke" }),
@@ -416,18 +421,24 @@ export function OrgUsersConsole({
     <div>
       <div className="org-toolbar">
         <div className="org-toolbar__left">
-          <button className="btn-primary" onClick={() => setNewOrgOpen(true)}>
-            + New org
-          </button>
+          {viewAs === "platform-admin" && (
+            <button className="btn-primary" onClick={() => setNewOrgOpen(true)}>
+              + New org
+            </button>
+          )}
           <button className="btn-secondary" onClick={() => setInviteOpen(true)}>
             + Invite member
           </button>
-          <button className="btn-secondary" onClick={() => { setRenameName(org?.name ?? ""); setRenameOpen(true); }}>
-            Rename org
-          </button>
-          <button className="btn-secondary btn-danger" onClick={deleteOrg} disabled={busy}>
-            Delete org
-          </button>
+          {viewAs === "platform-admin" && (
+            <>
+              <button className="btn-secondary" onClick={() => { setRenameName(org?.name ?? ""); setRenameOpen(true); }}>
+                Rename org
+              </button>
+              <button className="btn-secondary btn-danger" onClick={deleteOrg} disabled={busy}>
+                Delete org
+              </button>
+            </>
+          )}
         </div>
         <div className="org-toolbar__right">
           {selectedIds.size > 0 && (
@@ -438,20 +449,22 @@ export function OrgUsersConsole({
         </div>
       </div>
 
-      <div className="org-selector" role="tablist" aria-label="Organizations">
-        {orgs.map((o) => (
-          <button
-            key={o.id}
-            role="tab"
-            aria-selected={o.id === org.id}
-            className={`org-selector-btn ${o.id === org.id ? "active" : ""}`}
-            onClick={() => { setSelectedOrgId(o.id); setExpanded(null); setSelectedIds(new Set()); setSearch(""); setActiveTab("members"); }}
-          >
-            {o.name}
-            <span className="org-selector-count">{o.memberCount}</span>
-          </button>
-        ))}
-      </div>
+      {viewAs === "platform-admin" && (
+        <div className="org-selector" role="tablist" aria-label="Organizations">
+          {orgs.map((o) => (
+            <button
+              key={o.id}
+              role="tab"
+              aria-selected={o.id === org.id}
+              className={`org-selector-btn ${o.id === org.id ? "active" : ""}`}
+              onClick={() => { setSelectedOrgId(o.id); setExpanded(null); setSelectedIds(new Set()); setSearch(""); setActiveTab("members"); }}
+            >
+              {o.name}
+              <span className="org-selector-count">{o.memberCount}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tab navigation: Members / Invitations */}
       <div className="org-tab-nav" role="tablist" aria-label="View">
@@ -516,7 +529,9 @@ export function OrgUsersConsole({
         <div className="bulk-toolbar">
           <span className="bulk-toolbar__count">{selectedIds.size} selected</span>
           <div className="bulk-toolbar__actions">
-            <button className="bulk-toolbar__btn bulk-toolbar__btn--danger" onClick={bulkDelete} disabled={busy}>Delete selected</button>
+            {viewAs === "platform-admin" && (
+              <button className="bulk-toolbar__btn bulk-toolbar__btn--danger" onClick={bulkDelete} disabled={busy}>Delete selected</button>
+            )}
           </div>
         </div>
       )}
@@ -616,7 +631,7 @@ export function OrgUsersConsole({
                         <button className="member-panel__btn" onClick={(e) => { e.stopPropagation(); openEditModal(u); }}>
                           Edit user
                         </button>
-                        {u.id !== currentUserId && u.role !== "admin" && (
+                        {viewAs === "platform-admin" && u.id !== currentUserId && u.role !== "admin" && (
                           <button
                             className="member-panel__btn member-panel__btn--danger"
                             onClick={(e) => { e.stopPropagation(); deleteUser(u.id); }}
